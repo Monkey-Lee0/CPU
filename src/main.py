@@ -52,31 +52,50 @@ class Adder(Module):
         )
 
     @module.combinational
-    def build(self):
-        a, b = self.pop_all_ports(True)
+    def build(self, receiver):
+        a=self.a.pop()
+        b=self.b.pop()
         c=a+b
+        receiver.res.push(c)
         log("{} + {} = {}", a, b, c)
+
+class DataForwarder(Module):
+    def __init__(self):
+        super().__init__(
+            ports={
+                'res':Port(Int(32))
+            }
+        )
+
+    @module.combinational
+    def build(self, adder: Adder):
+        cnt = RegArray(Int(32), 1)
+        with Condition(cnt[0] < Int(32)(100) and self.res.valid()):
+            (cnt & self)[0] <= cnt[0] + Int(32)(1)
+            adder.async_called(a=self.res.pop(), b=cnt[0])
 
 class Driver(Module):
     def __init__(self):
         super().__init__({})
 
     @module.combinational
-    def build(self, adder: Adder):
-        cnt = RegArray(Int(32), 1)
-        (cnt & self)[0] <= cnt[0] + Int(32)(1)
-        cond = cnt[0] < Int(32)(100)
-        with Condition(cond):
-            adder.async_called(a=cnt[0], b=cnt[0])
+    def build(self, data_forwarder: DataForwarder):
+        flag = RegArray(Bits(1), 1)
+        with Condition(flag[0] == Bits(1)(0)):
+            log("enter")
+            (flag & self)[0] <= Bits(1)(1)
+            data_forwarder.res.push(Int(32)(0))
+        data_forwarder.async_called()
 
 if __name__ == "__main__":
     sys = SysBuilder('adder')
     with sys:
-        adder = Adder()
-        adder.build()
-
         driver = Driver()
-        driver.build(adder)
+        dataForwarder = DataForwarder()
+        adder = Adder()
+        driver.build(dataForwarder)
+        adder.build(dataForwarder)
+        dataForwarder.build(adder)
 
     print(sys)
 
