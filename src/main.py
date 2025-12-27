@@ -42,23 +42,24 @@ def run_quietly(func, *args, **kwargs):
     # 返回目标函数的执行结果
     return result
 
-class Adder(Module):
+
+class Decoder(Module):
     def __init__(self):
         super().__init__(
             ports={
-                'a':Port(Int(32)),
-                'b':Port(Int(32))
+                'instruction':Port(Bits(32)),
             }
         )
 
     @module.combinational
-    def build(self, receiver):
-        a=self.a.pop()
-        b=self.b.pop()
-        c=a+b
-        receiver.res.push(c)
-        log("{} + {} = {}", a, b, c)
+    def build(self):
+        inst = self.instruction.pop()
+        from decoder import parseInst
+        parseInst(inst)
 
+
+data = [0b00000000011000101000000010110011, 0b01000000001000110000001010110011,
+        0b00000000101000110100110110110011, 0b00000000011100110011001010110011]
 class DataForwarder(Module):
     def __init__(self):
         super().__init__(
@@ -68,11 +69,18 @@ class DataForwarder(Module):
         )
 
     @module.combinational
-    def build(self, adder: Adder):
+    def build(self, decoder: Decoder):
         cnt = RegArray(Int(32), 1)
-        with Condition(cnt[0] < Int(32)(100) and self.res.valid()):
-            (cnt & self)[0] <= cnt[0] + Int(32)(1)
-            adder.async_called(a=self.res.pop(), b=cnt[0])
+        (cnt & self)[0] <= cnt[0] + Int(32)(1)
+        for index, value in enumerate(data):
+            with Condition(cnt[0] % Int(32)(len(data)) == Int(32)(index)):
+                decoder.instruction.push(Bits(32)(value))
+        decoder.async_called()
+
+        # log("hahaha {}", self.res.valid().select(Bits(1)(0), Bits(1)(1)))
+        # with Condition(cnt[0] < Int(32)(100) and self.res.valid()):
+        #     adder.async_called(a=self.res.pop(), b=cnt[0])
+
 
 class Driver(Module):
     def __init__(self):
@@ -87,15 +95,18 @@ class Driver(Module):
             data_forwarder.res.push(Int(32)(0))
         data_forwarder.async_called()
 
+
 if __name__ == "__main__":
     sys = SysBuilder('adder')
     with sys:
         driver = Driver()
         dataForwarder = DataForwarder()
-        adder = Adder()
+        decoder = Decoder()
+        # adder = Adder()
         driver.build(dataForwarder)
-        adder.build(dataForwarder)
-        dataForwarder.build(adder)
+        # adder.build(dataForwarder)
+        dataForwarder.build(decoder)
+        decoder.build()
 
     print(sys)
 
