@@ -1,3 +1,5 @@
+from assassyn.ir.module.downstream import combinational
+
 from inst import *
 
 def takeBitsRange(b:Bits, l:int, r:int):
@@ -18,10 +20,8 @@ def parseInst(inst:Bits):
                 parseIInst(inst))
     res.checkCopy(opcode == Bits(32)(0b0100011), parseSInst(inst))
     res.checkCopy(opcode == Bits(32)(0b1100011), parseBInst(inst))
-    # with Condition(opcode == Bits(32)(0b1101111)):
-    #     res = parseJInst(inst)
-    # with Condition(opcode == Bits(32)(0b0010111)):
-    #     res = parseUInst(inst)
+    res.checkCopy(opcode == Bits(32)(0b0010111) or opcode == Bits(32)(0b0110111)), parseUInst(inst)
+    res.checkCopy(opcode == Bits(32)(0b1101111), parseJInst(inst))
     res.print()
     return res
 
@@ -59,7 +59,18 @@ def parseIInst(inst: Bits):
 
 
 def parseIStarInst(inst: Bits):
-    return Inst(Bits(32)(3), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
+    funct3 = takeBitsRange(inst, 12, 14)
+    rd = takeBitsRange(inst, 7, 11)
+    rs1 = takeBitsRange(inst, 15, 19)
+    imm = takeBitsRange(inst, 20, 24)
+    funct7 = takeBitsRange(inst, 25, 31)
+    instId = Bits(32)(0)
+
+    combinedVal = (funct3 << Bits(32)(7)) | funct7
+    for [expect, current] in IInst.items():
+        instId = (combinedVal == expect).select(current, instId)
+
+    return Inst(Bits(32)(3), instId, rd, rs1, Bits(32)(0), imm)
 
 def parseSInst(inst: Bits):
     funct3 = takeBitsRange(inst, 12, 14)
@@ -92,3 +103,32 @@ def parseBInst(inst: Bits):
         instId = (funct3 == expect).select(current, instId)
 
     return Inst(Bits(32)(5), instId, Bits(32)(0), rs1, rs2, imm)
+
+def parseUInst(inst: Bits):
+    opcode = takeBitsRange(inst, 0, 6)
+    rd = takeBitsRange(inst, 7, 11)
+    imm = mergeBits(inst, {
+        (12,31):(12,31)
+    })
+    instId = Bits(32)(0)
+
+    for [expect, current] in UInst.items():
+        instId = (opcode == expect).select(current, instId)
+
+    return Inst(Bits(32)(6), instId, rd, Bits(32)(0), Bits(32)(0), imm)
+
+def parseJInst(inst: Bits):
+    opcode = takeBitsRange(inst, 0, 6)
+    rd = takeBitsRange(inst, 7, 11)
+    imm = mergeBits(inst, {
+        (12, 19):(12, 19),
+        (20, 20):(11, 11),
+        (21, 30):(1, 10),
+        (31, 31):(12, 12),
+    })
+    instId = Bits(32)(0)
+
+    for [expect, current] in JInst.items():
+        instId = (opcode == expect).select(current, instId)
+
+        return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), imm)
