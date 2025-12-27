@@ -16,11 +16,11 @@ def parseInst(inst:Bits):
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
 
     res.checkCopy(opcode == Bits(32)(0b0110011), parseRInst(inst))
-    res.checkCopy(opcode == Bits(32)(0b0010011) or opcode == Bits(32)(0b0000011) or opcode == Bits(32)(0b1100111),
+    res.checkCopy((opcode == Bits(32)(0b0010011)) | (opcode == Bits(32)(0b0000011)) | (opcode == Bits(32)(0b1100111)),
                 parseIInst(inst))
     res.checkCopy(opcode == Bits(32)(0b0100011), parseSInst(inst))
     res.checkCopy(opcode == Bits(32)(0b1100011), parseBInst(inst))
-    res.checkCopy(opcode == Bits(32)(0b0010111) or opcode == Bits(32)(0b0110111), parseUInst(inst))
+    res.checkCopy((opcode == Bits(32)(0b0010111)) | (opcode == Bits(32)(0b0110111)), parseUInst(inst))
     res.checkCopy(opcode == Bits(32)(0b1101111), parseJInst(inst))
     res.print()
     return res
@@ -44,7 +44,7 @@ def parseRInst(inst: Bits):
 def parseIInst(inst: Bits):
     opcode = takeBitsRange(inst, 0 ,6)
     funct3 = takeBitsRange(inst, 12, 14)
-    isStar = (opcode == Bits(32)(0b0010011)) and (funct3 == Bits(32)(0b001) or funct3 == Bits(32)(0b101))
+    isStar = (opcode == Bits(32)(0b0010011)) & ((funct3 == Bits(32)(0b001)) | ((funct3 == Bits(32)(0b101))))
 
     rd = takeBitsRange(inst, 7, 11)
     rs1 = takeBitsRange(inst, 15, 19)
@@ -66,8 +66,9 @@ def parseIStarInst(inst: Bits):
     funct7 = takeBitsRange(inst, 25, 31)
     instId = Bits(32)(0)
 
+
     combinedVal = (funct3 << Bits(32)(7)) | funct7
-    for [expect, current] in IInst.items():
+    for [expect, current] in IStarInst.items():
         instId = (combinedVal == expect).select(current, instId)
 
     return Inst(Bits(32)(3), instId, rd, rs1, Bits(32)(0), imm)
