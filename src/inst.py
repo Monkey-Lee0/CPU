@@ -31,6 +31,10 @@ class Inst:
             printInst(self.id, '{} {} {}', self.rd, self.rs1, self.rs2)
         with Condition(self.type == Bits(32)(2)): # type I
             printInst(self.id, '{} {} {}', self.rd, self.rs1, self.imm)
+        with Condition(self.type == Bits(32)(4)):
+            printInst(self.id, '{} {}({})', self.rs2, self.imm, self.rs1)
+        with Condition(self.type == Bits(32)(5)):
+            printInst(self.id, '{} {} {}', self.rs1, self.rs2, self.imm)
 
 RInst = { # funct3 - funct7 -> id
     Bits(32)(0b0000000000):Bits(32)(1), # add

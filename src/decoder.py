@@ -16,10 +16,8 @@ def parseInst(inst:Bits):
     res.checkCopy(opcode == Bits(32)(0b0110011), parseRInst(inst))
     res.checkCopy(opcode == Bits(32)(0b0010011) or opcode == Bits(32)(0b0000011) or opcode == Bits(32)(0b1100111),
                 parseIInst(inst))
-    # with Condition(opcode == Bits(32)(0b0100011)):
-    #     res = parseSInst(inst)
-    # with Condition(opcode == Bits(32)(0b0100011)):
-    #     res = parseBInst(inst)
+    res.checkCopy(opcode == Bits(32)(0b0100011), parseSInst(inst))
+    res.checkCopy(opcode == Bits(32)(0b1100011), parseBInst(inst))
     # with Condition(opcode == Bits(32)(0b1101111)):
     #     res = parseJInst(inst)
     # with Condition(opcode == Bits(32)(0b0010111)):
@@ -71,7 +69,7 @@ def parseSInst(inst: Bits):
         (7,11):(0,4),
         (25,31):(5,11)
     })
-    # imm = takeBitsRange(inst, 7,11) | (takeBitsRange(inst, 25, 31) << Bits(32)(5))
+    instId = Bits(32)(0)
 
     for [expect, current] in SInst.items():
         instId = (funct3 == expect).select(current, instId)
@@ -88,7 +86,8 @@ def parseBInst(inst: Bits):
         (31,31):(12,12),
         (7,7):(11,11)
     })
-    # imm = (takeBitsRange(inst, 8,11) << Bits(32)(1)) | (takeBitsRange(inst, 25, 30) << Bits(32)(5)) | (takeBitsRange(inst, 31 , 31) << Bits(32)(12)) | (takeBitsRange(inst, 7, 7) << Bits(32)(11))
+    instId = Bits(32)(0)
+
     for [expect, current] in BInst.items():
         instId = (funct3 == expect).select(current, instId)
 
