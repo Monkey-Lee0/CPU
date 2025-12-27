@@ -3,6 +3,12 @@ from inst import *
 def takeBitsRange(b:Bits, l:int, r:int):
     return (b>>Bits(32)(l))&((Bits(32)(1)<<Bits(32)(r-l+1))-Bits(32)(1))
 
+def mergeBits(b:Bits, rule:dict):
+    res = Bits(32)(0)
+    for fr, to in rule.items():
+        res = res | (takeBitsRange(b, fr[0], fr[1]) << Bits(32)(to[0]))
+    return res
+
 def parseInst(inst:Bits):
     opcode = takeBitsRange(inst, 0, 6)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
