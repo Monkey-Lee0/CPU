@@ -43,19 +43,7 @@ def run_quietly(func, *args, **kwargs):
     return result
 
 
-class Decoder(Module):
-    def __init__(self):
-        super().__init__(
-            ports={
-                'instruction':Port(Bits(32)),
-            }
-        )
 
-    @module.combinational
-    def build(self):
-        inst = self.instruction.pop()
-        from decoder import parseInst
-        parseInst(inst)
 
 
 data = [0b00000000011000101000000010110011, 0b01000000001000110000001010110011,

@@ -132,4 +132,20 @@ def parseJInst(inst: Bits):
     for [expect, current] in JInst.items():
         instId = (opcode == expect).select(current, instId)
 
-        return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), imm)
+    return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), imm)
+
+
+class Decoder(Module):
+    def __init__(self):
+        super().__init__(
+            ports={
+                'instruction':Port(Bits(32)),
+                'valid':Port(Bits(1)),
+            }
+        )
+
+    @module.combinational
+    def build(self):
+        inst = self.instruction.pop()
+        from decoder import parseInst
+        parseInst(inst)
