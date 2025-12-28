@@ -1,10 +1,12 @@
 from assassyn.frontend import *
-from assassyn.backend import elaborate
+from assassyn.backend import elaborate, config
 from assassyn import utils
 import assassyn
 
 import os
+from unit import buildSys
 from contextlib import contextmanager
+from pathlib import Path
 
 # 先定义上下文管理器，用于临时抑制输出
 @contextmanager
@@ -42,64 +44,9 @@ def run_quietly(func, *args, **kwargs):
     # 返回目标函数的执行结果
     return result
 
-
-
-
-
-data = [0b00000000011000101000000010110011, 0b01000000001000110000001010110011,
-        0b00000000101000110100110110110011, 0b00000000011100110011001010110011,
-        0b00000000010100101000001010010011, 0b01000000000010010111010010010011,
-        0b11111010011000111000100100100011, 0b10111010011100110101110101100011,
-        0b00000000110000110101001100010011, 0b01011101110000000000000101101111,
-        0b01111010100100001110000010010111,]
-
-class DataForwarder(Module):
-    def __init__(self):
-        super().__init__(
-            ports={
-                'res':Port(Int(32))
-            }
-        )
-
-    @module.combinational
-    def build(self, decoder: Decoder):
-        cnt = RegArray(Int(32), 1)
-        (cnt & self)[0] <= cnt[0] + Int(32)(1)
-        for index, value in enumerate(data):
-            with Condition(cnt[0] % Int(32)(len(data)) == Int(32)(index)):
-                decoder.instruction.push(Bits(32)(value))
-        decoder.async_called()
-
-        # log("hahaha {}", self.res.valid().select(Bits(1)(0), Bits(1)(1)))
-        # with Condition(cnt[0] < Int(32)(100) and self.res.valid()):
-        #     adder.async_called(a=self.res.pop(), b=cnt[0])
-
-
-class Driver(Module):
-    def __init__(self):
-        super().__init__({})
-
-    @module.combinational
-    def build(self, data_forwarder: DataForwarder):
-        flag = RegArray(Bits(1), 1)
-        with Condition(flag[0] == Bits(1)(0)):
-            log("enter")
-            (flag & self)[0] <= Bits(1)(1)
-            data_forwarder.res.push(Int(32)(0))
-        data_forwarder.async_called()
-
-
 if __name__ == "__main__":
-    sys = SysBuilder('adder')
-    with sys:
-        driver = Driver()
-        dataForwarder = DataForwarder()
-        decoder = Decoder()
-        # adder = Adder()
-        driver.build(dataForwarder)
-        # adder.build(dataForwarder)
-        dataForwarder.build(decoder)
-        decoder.build()
+
+    sys = buildSys()
 
     print(sys)
 
@@ -107,6 +54,7 @@ if __name__ == "__main__":
         verilog=utils.has_verilator(),
         sim_threshold=200,
         idle_threshold=200,
+        resource_base=Path(__file__).resolve().parent.parent,
         random=True
     )
 
