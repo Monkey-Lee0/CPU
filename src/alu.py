@@ -1,6 +1,6 @@
 from assassyn.frontend import *
 
-from src import rob
+from rob import ROB
 
 
 class alu(Module):
@@ -12,7 +12,7 @@ class alu(Module):
             'robId':Port(Bits(32))
         })
     @module.combinational
-    def build(self):
+    def build(self,rob:ROB):
         res = Bits(32)(0)
         instId = self.instId.pop()
         lhs = self.lhs.pop()
