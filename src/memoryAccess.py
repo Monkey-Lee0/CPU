@@ -1,4 +1,3 @@
-from assassyn.frontend import *
 from decoder import *
 from utils import ValArray
 
@@ -24,27 +23,27 @@ class ICache(Module):
 
         valid = Bits(1)(0)
         for i in range(rs.itemSize):
-            valid = valid | (~rs.busy[i].get())
+            valid = valid | (~rs.busy[i])
 
         with Condition(start):
             hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0])
             cnt = Bits(32)(0)
             inst = Bits(32)(0)
             for i in range(self.cacheSize):
-                zero = self.id[i].get() == Bits(32)(0)
-                changeInst = (self.id[i].get() == pc[0] + Bits(32)(1)) & valid
+                zero = self.id[i] == Bits(32)(0)
+                changeInst = (self.id[i] == pc[0] + Bits(32)(1)) & valid
                 # log('!!! {} {} {} {}', Bits(32)(i), changeInst, self.cachePool[i][1][0], self.cachePool[i][0][0])
-                inst = changeInst.select(self.cachePool[i].get(), inst)
+                inst = changeInst.select(self.cachePool[i], inst)
 
-                newValue0 = self.cachePool[i].get()
+                newValue0 = self.cachePool[i]
                 newValue0 = (zero & hasValue).select(self.sram.dout[0], newValue0)
                 newValue0 = changeInst.select(Bits(32)(0), newValue0)
-                self.cachePool[i] <= newValue0
+                self.cachePool[i] = newValue0
 
-                newValue1 = self.id[i].get()
+                newValue1 = self.id[i]
                 newValue1 = (zero & hasValue).select(pc_cache[0], newValue1)
                 newValue1 = changeInst.select(Bits(32)(0), newValue1)
-                self.id[i] <= newValue1
+                self.id[i] = newValue1
 
                 cnt = cnt + (~zero)
                 hasValue = zero.select(Bits(1)(0), hasValue)
@@ -58,6 +57,8 @@ class ICache(Module):
             with Condition(inst != Bits(32)(0)):
                 # issue into rs
                 res = parseInst(inst)
+                log("issue {}", robId[0])
+                res.print()
                 rs.type.push(res.type)
                 rs.id.push(res.id)
                 rs.rd.push(res.rd)

@@ -1,20 +1,26 @@
 from assassyn.frontend import *
 
-class ValWithOwner:
-    def __init__(self, arr:Array, owner):
-        self.arr = arr
-        self.owner = owner
-
-    def __le__(self, other):
-        (self.arr & self.owner)[0] <= other
-
-    def get(self):
-        return self.arr[0]
-
 class ValArray:
     def __init__(self, dtype:DType, size:int, owner):
+        self.size = size
+        self.dtype = dtype
         self.arr = [RegArray(dtype, 1) for _ in range(size)]
         self.owner = owner
 
     def __getitem__(self, idx):
-        return ValWithOwner(self.arr[idx], self.owner)
+        if isinstance(idx, int):
+            return self.arr[idx][0]
+        if isinstance(idx, Value):
+            res = self.arr[0][0]
+            for i in range(self.size):
+                res = (idx == Bits(32)(i)).select(self.arr[i][0], res)
+            return res
+        return None
+
+    def __setitem__(self, idx, value):
+        if isinstance(idx, int):
+            (self.arr[idx] & self.owner)[0] <= value
+        elif isinstance(idx, Value):
+            for i in range(self.size):
+                with Condition(idx == Bits(32)(i)):
+                    (self.arr[i] & self.owner)[0] <= value

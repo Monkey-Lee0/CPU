@@ -1,4 +1,5 @@
 from assassyn.frontend import *
+from inst import idToType
 from utils import ValArray
 
 class ROB(Module):
@@ -19,14 +20,35 @@ class ROB(Module):
         self.inst = ValArray(Bits(32), robSize, self)
         self.dest = ValArray(Bits(32), robSize, self)
         self.value = ValArray(Bits(32), robSize, self)
+        self.ID = ValArray(Bits(32), robSize, self)
+        self.l = RegArray(Bits(32), 1, [0])
+        self.r = RegArray(Bits(32), 1, [0])
+
+
+    def push(self, busy, inst, dest, value, newId):
+        (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.robSize)
+        self.busy[self.r[0]] = busy
+        self.inst[self.r[0]] = inst
+        self.dest[self.r[0]] = dest
+        self.value[self.r[0]] = value
+        self.ID[self.r[0]] = newId
+
+    def pop(self):
+        (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.robSize)
+        self.busy[self.l[0]] = Bits(1)(0)
+        self.inst[self.l[0]] = Bits(32)(0)
+        self.dest[self.l[0]] = Bits(32)(0)
+        self.value[self.l[0]] = Bits(32)(0)
+        self.ID[self.l[0]] = Bits(32)(0)
+
+    def log(self):
+        log('-'*50)
+        for i in range(self.robSize):
+            log('busy:{} inst:{} dest:{} value:{}', self.busy[i], self.inst[i], self.dest[i], self.value[i])
+        log('-'*50)
 
     @module.combinational
-    def build(self, rf):
-        we = RegArray(Bits(1), 2)
-        wPos = RegArray(Bits(32), 2)
-        wData = RegArray(Bits(32), 2)
-        wId = RegArray(Bits(32), 2)
-
+    def build(self, rf, rs):
         # issue in rob
         with Condition(self.type.valid()):
             instType = self.type.pop()
@@ -39,5 +61,32 @@ class ROB(Module):
 
             with Condition(rd != Bits(32)(0)):
                 rf.build(rd, rf.regs[rd], newId)
+                self.push(Bits(1)(1), instId, rd, Bits(32)(0), newId)
 
-        rf.log()
+        with Condition(self.resFromALU.valid()):
+            res = self.resFromALU.pop()
+            robId = self.idFromALU.pop()
+            for i in range(self.robSize):
+                # cur = Bits(32)(i)
+                # inside = ((self.l <= cur) & (cur < self.r)) | ((self.l > self.r) & ((cur < self.r) | (cur >= self.l)))
+                with Condition(self.ID[i] == robId):
+                    self.value[i] = res
+                    self.busy[i] = Bits(1)(0)
+
+        # commit
+        with Condition((self.l[0] != self.r[0]) & (~self.busy[self.l[0]])):
+            commitId = self.ID[self.l[0]]
+            log("commit {} {}", commitId, self.value[self.l[0]])
+            # deliver to rs
+            rs.robId.push(commitId)
+            rs.robRes.push(self.value[self.l[0]])
+            self.pop()
+            # modify in rf
+            instType = idToType(self.inst[i])
+            with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2))):
+                dest = self.dest[self.l[0]]
+                rf.build(dest, self.value[self.l[0]],
+                         (rf.dependence[dest] == commitId).select(Bits(32)(0), rf.dependence[dest]))
+
+        # rf.log()
+        # self.log()

@@ -52,8 +52,8 @@ if __name__ == "__main__":
 
     config = assassyn.backend.config(
         verilog=utils.has_verilator(),
-        sim_threshold=20,
-        idle_threshold=20,
+        sim_threshold=200,
+        idle_threshold=200,
         resource_base=Path(__file__).resolve().parent.parent,
         random=True
     )

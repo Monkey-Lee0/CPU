@@ -3,6 +3,7 @@ from memoryAccess import ICache
 from rs import RS
 from regFile import RegFile
 from rob import ROB
+from alu import ALU
 
 class Driver(Module):
     def __init__(self):
@@ -26,10 +27,12 @@ def buildSys():
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)
+        alu = ALU()
 
         driver.build(iCache)
         iCache.build(rs, rob)
-        rob.build(rf)
-        rs.build(rf)
+        rob.build(rf, rs)
+        alu.build(rob)
+        rs.build(rf, alu)
 
     return sys

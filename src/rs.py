@@ -1,5 +1,6 @@
 from regFile import *
 from utils import ValArray
+from inst import idToType
 
 class RS(Module):
     def __init__(self, rsSize):
@@ -10,12 +11,14 @@ class RS(Module):
             'rs1':Port(Bits(32)),
             'rs2':Port(Bits(32)),
             'imm':Port(Bits(32)),
-            'newId':Port(Bits(32))
+            'newId':Port(Bits(32)),
+            'robId':Port(Bits(32)),
+            'robRes':Port(Bits(32))
         })
 
         self.itemSize = rsSize
         self.busy = ValArray(Bits(1), rsSize, self)
-        self.op = ValArray(Bits(32), rsSize, self)
+        self.inst = ValArray(Bits(32), rsSize, self)
         self.vj = ValArray(Bits(32), rsSize, self)
         self.vk = ValArray(Bits(32), rsSize, self)
         self.qj = ValArray(Bits(32), rsSize, self)
@@ -24,9 +27,9 @@ class RS(Module):
         self.A = ValArray(Bits(32), rsSize, self)
 
     @module.combinational
-    def build(self, rf):
+    def build(self, rf, alu):
+        # issue into rs
         with Condition(self.type.valid()):
-            # issue into rs
             instType = self.type.pop()
             instId = self.id.pop()
             rd = self.rd.pop()
@@ -37,35 +40,78 @@ class RS(Module):
 
             tag = Bits(1)(1)
             for i in range(self.itemSize):
-                with Condition((~self.busy[i].get()) & tag):
+                with Condition((~self.busy[i]) & tag):
                     # type R
                     with Condition(instType == Bits(32)(1)):
-                        self.busy[i] <= Bits(1)(1)
-                        self.op[i] <= instId
-                        self.vj[i] <= (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
-                        self.vk[i] <= (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
-                        self.qj[i] <= (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
-                        self.qk[i] <= (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
-                        self.dest[i] <= newId
-                        self.A[i] <= Bits(32)(0)
+                        self.busy[i] = Bits(1)(1)
+                        self.inst[i] = instId
+                        self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
+                        self.vk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
+                        self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
+                        self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
+                        self.dest[i] = newId
+                        self.A[i] = Bits(32)(0)
                     # type I
                     with Condition(instType == Bits(32)(2)):
-                        self.busy[i] <= Bits(1)(1)
-                        self.op[i] <= instId
-                        self.vj[i] <= (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
-                        self.vk[i] <= Bits(32)(0)
-                        self.qj[i] <= (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
-                        self.qk[i] <= Bits(32)(0)
-                        self.dest[i] <= newId
-                        self.A[i] <= imm
-                tag = tag & self.busy[i].get()
+                        self.busy[i] = Bits(1)(1)
+                        self.inst[i] = instId
+                        self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
+                        self.vk[i] = Bits(32)(0)
+                        self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
+                        self.qk[i] = Bits(32)(0)
+                        self.dest[i] = newId
+                        self.A[i] = imm
+                tag = tag & self.busy[i]
 
-        self.printTable()
+        # forward into alu
+        tag = Bits(1)(1)
+        for i in range(self.itemSize):
+            canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0))
+            with Condition(tag & canExecute):
+                instType = idToType(self.inst[i])
+                log("{} {} {} {}", Bits(32)(i), canExecute, self.inst[i], instType)
+                # type R
+                with Condition(instType == Bits(32)(1)):
+                    alu.instId.push(self.inst[i])
+                    alu.lhs.push(self.vj[i])
+                    alu.rhs.push(self.vk[i])
+                    alu.robId.push(self.dest[i])
+                # type I
+                with Condition(instType == Bits(32)(2)):
+                    alu.instId.push(self.inst[i])
+                    alu.lhs.push(self.vj[i])
+                    alu.rhs.push(self.A[i])
+                    alu.robId.push(self.dest[i])
 
-    def printTable(self):
+                self.busy[i] = Bits(1)(0)
+                self.inst[i] = Bits(32)(0)
+                self.vj[i] = Bits(32)(0)
+                self.vk[i] = Bits(32)(0)
+                self.qj[i] = Bits(32)(0)
+                self.qk[i] = Bits(32)(0)
+                self.dest[i] = Bits(32)(0)
+                self.A[i] = Bits(32)(0)
+            tag = tag & (~canExecute)
+
+        # update from rob
+        with Condition(self.robId.valid()):
+            robId = self.robId.pop()
+            robRes = self.robRes.pop()
+            for i in range(self.itemSize):
+                with Condition(self.qj[i] == robId):
+                    self.qj[i] <= Bits(32)(0)
+                    self.vj[i] <= robRes
+                with Condition(self.qk[i] == robId):
+                    self.qk[i] <= Bits(32)(0)
+                    self.vk[i] <= robRes
+
+        # self.log()
+        alu.async_called()
+
+    def log(self):
         log('-'*50)
         for i in range(self.itemSize):
-            log('busy:{} op:{} vj:{} vk:{} qj:{} qk:{} dest:{} A:{}', self.busy[i].get(), self.op[i].get(),
-                self.vj[i].get(), self.vk[i].get(), self.qj[i].get(), self.qk[i].get(), self.dest[i].get(),
-                self.A[i].get())
+            log('busy:{} op:{} vj:{} vk:{} qj:{} qk:{} dest:{} A:{}', self.busy[i], self.inst[i],
+                self.vj[i], self.vk[i], self.qj[i], self.qk[i], self.dest[i],
+                self.A[i])
         log('-'*50)

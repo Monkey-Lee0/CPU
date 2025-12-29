@@ -26,21 +26,21 @@ class Inst:
         self.imm = cond.select(other.imm, self.imm)
         return self
 
-    def print(self):
+    def print(self, Str = ''):
         with Condition(self.type == Bits(32)(1)): # type R
-            printInst(self.id, '{} {} {}', self.rd, self.rs1, self.rs2)
+            printInst(self.id, Str+'{} {} {}', self.rd, self.rs1, self.rs2)
         with Condition(self.type == Bits(32)(2)): # type I
-            printInst(self.id, '{} {} {}', self.rd, self.rs1, self.imm)
+            printInst(self.id, Str+'{} {} {}', self.rd, self.rs1, self.imm)
         with Condition(self.type == Bits(32)(3)):
-            printInst(self.id, '{} {} {}', self.rd, self.rs1, self.imm)
+            printInst(self.id, Str+'{} {} {}', self.rd, self.rs1, self.imm)
         with Condition(self.type == Bits(32)(4)):
-            printInst(self.id, '{} {}({})', self.rs2, self.imm, self.rs1)
+            printInst(self.id, Str+'{} {}({})', self.rs2, self.imm, self.rs1)
         with Condition(self.type == Bits(32)(5)):
-            printInst(self.id, '{} {} {}', self.rs1, self.rs2, self.imm)
+            printInst(self.id, Str+'{} {} {}', self.rs1, self.rs2, self.imm)
         with Condition(self.type == Bits(32)(6)):
-            printInst(self.id, '{} {}', self.rd, self.imm)
+            printInst(self.id, Str+'{} {}', self.rd, self.imm)
         with Condition(self.type == Bits(32)(7)):
-            printInst(self.id, '{} {}', self.rd, self.imm)
+            printInst(self.id, Str+'{} {}', self.rd, self.imm)
 
 RInst = { # funct3 - funct7 -> id
     Bits(32)(0b0000000000):Bits(32)(1), # add
@@ -139,6 +139,53 @@ InstName = {
     Bits(32)(36):'auipc',
     Bits(32)(37):'lui'
 }
+
+idToTypeDict = {
+    Bits(32)(0):Bits(32)(0),
+    Bits(32)(1):Bits(32)(1),
+    Bits(32)(2):Bits(32)(1),
+    Bits(32)(3):Bits(32)(1),
+    Bits(32)(4):Bits(32)(1),
+    Bits(32)(5):Bits(32)(1),
+    Bits(32)(6):Bits(32)(1),
+    Bits(32)(7):Bits(32)(1),
+    Bits(32)(8):Bits(32)(1),
+    Bits(32)(9):Bits(32)(1),
+    Bits(32)(10):Bits(32)(1),
+    Bits(32)(11):Bits(32)(2),
+    Bits(32)(12):Bits(32)(2),
+    Bits(32)(13):Bits(32)(2),
+    Bits(32)(14):Bits(32)(2),
+    Bits(32)(15):Bits(32)(3),
+    Bits(32)(16):Bits(32)(3),
+    Bits(32)(17):Bits(32)(3),
+    Bits(32)(18):Bits(32)(2),
+    Bits(32)(19):Bits(32)(2),
+    Bits(32)(20):Bits(32)(2),
+    Bits(32)(21):Bits(32)(2),
+    Bits(32)(22):Bits(32)(2),
+    Bits(32)(23):Bits(32)(2),
+    Bits(32)(24):Bits(32)(2),
+    Bits(32)(25):Bits(32)(4),
+    Bits(32)(26):Bits(32)(4),
+    Bits(32)(27):Bits(32)(4),
+    Bits(32)(28):Bits(32)(5),
+    Bits(32)(29):Bits(32)(5),
+    Bits(32)(30):Bits(32)(5),
+    Bits(32)(31):Bits(32)(5),
+    Bits(32)(32):Bits(32)(5),
+    Bits(32)(33):Bits(32)(5),
+    Bits(32)(34):Bits(32)(7),
+    Bits(32)(35):Bits(32)(2),
+    Bits(32)(36):Bits(32)(6),
+    Bits(32)(37):Bits(32)(6),
+}
+
+def idToType(instId):
+    res = Bits(32)(0)
+    for Id, Type in idToTypeDict.items():
+        res = (Id == instId).select(Type, res)
+    return res
 
 def printInst(instId:Bits, format:str, *args):
     with Condition(instId == Bits(32)(0)):
