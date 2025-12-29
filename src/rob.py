@@ -54,11 +54,11 @@ class ROB(Module):
         self.anotherPC[pos] = Bits(32)(0)
 
     def log(self):
-        log('-' * 50)
+        log('-'*50)
         for i in range(self.robSize):
             log('busy:{} inst:{} dest:{} value:{} expectV:{} anotherPC:{}',
                 self.busy[i], self.inst[i], self.dest[i], self.value[i], self.expect[i], self.anotherPC[i])
-        log('-' * 50)
+        log('-'*50)
 
     @module.combinational
     def build(self, rf, rs):
