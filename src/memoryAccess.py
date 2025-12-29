@@ -13,7 +13,7 @@ class ICache(Module):
         })
 
     @module.combinational
-    def build(self):
+    def build(self, rs):
         pc = RegArray(Bits(32), 1)
         pc_cache = RegArray(Bits(32), 1)
         start = self.start.peek()
@@ -21,9 +21,9 @@ class ICache(Module):
         self.sram.build(Bits(1)(0), re[0], pc_cache[0], Bits(32)(0))
         lastInst = RegArray(Bits(32), 1)
 
-        clk = RegArray(Bits(32), 1)
-        (clk & self)[0] <= clk[0] + Bits(32)(1)
-        valid = clk[0][1:1] == Bits(1)(0)
+        valid = Bits(1)(0)
+        for i in range(rs.itemSize):
+            valid = valid | (~rs.busy[i].get())
 
         with Condition(start):
             hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0])
@@ -45,7 +45,7 @@ class ICache(Module):
                 newValue1 = changeInst.select(Bits(32)(0), newValue1)
                 self.id[i] <= newValue1
 
-                cnt = zero.select(cnt, cnt + Bits(32)(1))
+                cnt = cnt + (~zero)
                 hasValue = zero.select(Bits(1)(0), hasValue)
 
             with Condition(self.sram.dout[0] != Bits(32)(0)):
@@ -55,5 +55,12 @@ class ICache(Module):
             (pc & self)[0] <= pc[0] + (inst != Bits(32)(0))
 
             with Condition(inst != Bits(32)(0)):
-                # log('{} ???', inst)
-                parseInst(inst)
+                res = parseInst(inst)
+                rs.type.push(res.type)
+                rs.id.push(res.id)
+                rs.rd.push(res.rd)
+                rs.rs1.push(res.rs1)
+                rs.rs2.push(res.rs2)
+                rs.imm.push(res.imm)
+
+        rs.async_called()

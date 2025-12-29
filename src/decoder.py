@@ -22,7 +22,6 @@ def parseInst(inst:Bits):
     res.checkCopy(opcode == Bits(32)(0b1100011), parseBInst(inst))
     res.checkCopy((opcode == Bits(32)(0b0010111)) | (opcode == Bits(32)(0b0110111)), parseUInst(inst))
     res.checkCopy(opcode == Bits(32)(0b1101111), parseJInst(inst))
-    res.print()
     return res
 
 

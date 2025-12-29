@@ -1,15 +1,6 @@
 from assassyn.frontend import *
 from memoryAccess import ICache
-
-
-
-
-data = [0b00000000011000101000000010110011, 0b01000000001000110000001010110011,
-        0b00000000101000110100110110110011, 0b00000000011100110011001010110011,
-        0b00000000010100101000001010010011, 0b01000000000010010111010010010011,
-        0b11111010011000111000100100100011, 0b10111010011100110101110101100011,
-        0b00000000110000110101001100010011, 0b01011101110000000000000101101111,
-        0b01111010100100001110000010010111,]
+from rs import RS
 
 class Driver(Module):
     def __init__(self):
@@ -30,8 +21,10 @@ def buildSys():
     with sys:
         driver = Driver()
         iCache = ICache(8, 'workload/test.data')
+        rs = RS(8)
 
         driver.build(iCache)
-        iCache.build()
+        iCache.build(rs)
+        rs.build()
 
     return sys
