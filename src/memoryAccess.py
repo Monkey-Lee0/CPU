@@ -13,9 +13,10 @@ class ICache(Module):
         })
 
     @module.combinational
-    def build(self, rs):
+    def build(self, rs, rob):
         pc = RegArray(Bits(32), 1)
         pc_cache = RegArray(Bits(32), 1)
+        robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
         re = RegArray(Bits(1), 1, initializer=[1])
         self.sram.build(Bits(1)(0), re[0], pc_cache[0], Bits(32)(0))
@@ -55,6 +56,7 @@ class ICache(Module):
             (pc & self)[0] <= pc[0] + (inst != Bits(32)(0))
 
             with Condition(inst != Bits(32)(0)):
+                # issue into rs
                 res = parseInst(inst)
                 rs.type.push(res.type)
                 rs.id.push(res.id)
@@ -62,5 +64,18 @@ class ICache(Module):
                 rs.rs1.push(res.rs1)
                 rs.rs2.push(res.rs2)
                 rs.imm.push(res.imm)
+                rs.newId.push(robId[0])
+
+                # issue into rob
+                rob.type.push(res.type)
+                rob.id.push(res.id)
+                rob.rd.push(res.rd)
+                rob.rs1.push(res.rs1)
+                rob.rs2.push(res.rs2)
+                rob.imm.push(res.imm)
+                rob.newId.push(robId[0])
+
+                (robId & self)[0] <= robId[0] + Bits(32)(1)
 
         rs.async_called()
+        rob.async_called()

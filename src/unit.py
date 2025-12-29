@@ -1,6 +1,8 @@
 from assassyn.frontend import *
 from memoryAccess import ICache
 from rs import RS
+from regFile import RegFile
+from rob import ROB
 
 class Driver(Module):
     def __init__(self):
@@ -20,11 +22,14 @@ def buildSys():
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        iCache = ICache(8, 'workload/test.data')
+        iCache = ICache(8, 'workload/hazard.data')
         rs = RS(8)
+        rob = ROB(8)
+        rf = RegFile(rob)
 
         driver.build(iCache)
-        iCache.build(rs)
-        rs.build()
+        iCache.build(rs, rob)
+        rob.build(rf)
+        rs.build(rf)
 
     return sys
