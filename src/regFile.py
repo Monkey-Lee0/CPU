@@ -2,55 +2,58 @@ from assassyn.frontend import *
 
 class RegFile(Downstream):
     def __init__(self):
-        self.Regs=RegArray(Bits(32), 32)
+        self.Regs = RegArray(
+            scalar_ty=Bits(32),
+            size=32,
+        )
         super().__init__()
 
-    # If you want to write, please leisurely use a variable
-    # to get the meaningless False, make isWrite True and
-    # respectively input WriteIndex and WriteValue.
-    # If you want to read Regs, please use a variable to get the
-    # Bits(32) Value, make isRead True and input ReadIndex
-
-    def build(self,isRead=False,isWrite=False,ReadIndex=0,
-              WriteIndex=0,WriteValue=Bits(32)(0)):
+    @downstream.combinational
+    def build(self,isRead = Bits(1)(0),isWrite = Bits(1)(0),ReadIndex = Bits(32)(0)
+              ,WriteIndex = Bits(32)(0),WriteValue = Bits(32)(32)):
         res = Bits(32)(0)
-        res = isRead.select(ReadRegs(self.Regs,ReadIndex),res)
-        res = isWrite.select(WriteRegs(self.Regs,WriteIndex,WriteValue),res)
+        logRegs(self.Regs)
+        res = isRead.select(ReadRegs(self.Regs, ReadIndex),res)
+        res = isWrite.select(WriteRegs(self.Regs,isWrite, WriteIndex, WriteValue),res)
         return res
+
+def logRegs(RF):
+    for i in range(32):
+        log("Reg[{}] {}", Bits(32)(i), RF[Bits(32)(i)])
 
 def ReadRegs(RF,ind):
-    return RF[ind]
+    res = (ind < Bits(32)(32)).select(RF[ind],Bits(32)(0))
+    return res
 
-def WriteRegs(RF,ind,WV):
-    RF[ind] = WV
-    return RF[ind]
+def WriteRegs(RF,isWrite,ind,WV):
+    RF[ind] = isWrite.select(WV,RF[ind])
+    return Bits(32)(0)
 
-
-class ValidFile(Downstream):
+class BusyFile(Downstream):
     def __init__(self):
-        self.Valid=RegArray(Bits(1), 32)
+        self.Valids = RegArray(
+            scalar_ty=Bits(1),
+            size=32,
+        )
         super().__init__()
 
-    # If you want to read Validations, please use a variable to get the
-    # Bits(1) Value, make isValid True and input ValidIndex
-    # If you want to write Validation, please leisurely use a variable to get the
-    # Bits(1) Value. You can select two pattern of setting occupied or setting valid
-
-    def build(self,isRead=False,ReadIndex=0,isOccupy=False,OccupyIndex=0,
-            isValidate=False,ValidateIndex=0):
+    @downstream.combinational
+    def build(self,isRead = Bits(1)(0),isWrite = Bits(1)(0),ReadIndex = Bits(32)(0)
+              ,WriteIndex = Bits(32)(0),WriteValue = Bits(1)(0)):
         res = Bits(1)(0)
-        res = isRead.select(Valid_Read(self.Valid,ReadIndex),res)
-        res = isValidate.select(Validate_Regs(self.Valid,ValidateIndex),res)
-        res = isOccupy.select(Occupy_Regs(self.Valid,OccupyIndex),res)
+        logValids(self.Valids)
+        res = isRead.select(ReadValids(self.Valids, ReadIndex),res)
+        res = isWrite.select(WriteValids(self.Valids,isWrite, WriteIndex, WriteValue),res)
         return res
 
-def Valid_Read(VF,ind):
-    return VF[ind]
+def logValids(VF):
+    for i in range(32):
+        log("Valid[{}] {}", Bits(32)(i), VF[Bits(32)(i)])
 
-def Validate_Regs(VF,ind):
-    VF[ind] = Bits(1)(1)
-    return VF[ind]
+def ReadValids(VF,ind):
+    res = (ind < Bits(32)(32)).select(VF[ind],Bits(1)(0))
+    return res
 
-def Occupy_Regs(VF,ind):
-    VF[ind] = Bits(1)(0)
-    return VF[ind]
+def WriteValids(VF,isWrite,ind,WV):
+    VF[ind] = isWrite.select(WV,VF[ind])
+    return Bits(1)(0)
