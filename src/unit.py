@@ -1,5 +1,4 @@
 from assassyn.frontend import *
-from decoder import Decoder
 from memoryAccess import ICache
 
 
@@ -30,11 +29,9 @@ def buildSys():
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        iCache = ICache(8, 'workload/0to100.data')
-        decoder = Decoder()
+        iCache = ICache(8, 'workload/test.data')
 
         driver.build(iCache)
-        decoderValid = decoder.build()
-        iCache.build(decoder, decoderValid)
+        iCache.build()
 
     return sys

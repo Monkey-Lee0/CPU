@@ -1,7 +1,5 @@
-from assassyn.ir.module.downstream import combinational
-
 from inst import *
-from src.memoryAccess import ICache
+from assassyn import *
 
 
 def takeBitsRange(b:Bits, l:int, r:int):
@@ -135,26 +133,3 @@ def parseJInst(inst: Bits):
         instId = (opcode == expect).select(current, instId)
 
     return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), imm)
-
-
-class Decoder(Module):
-    def __init__(self):
-        super().__init__(
-            ports={
-                'instruction':Port(Bits(32)),
-            }
-        )
-
-    @module.combinational
-    def build(self):
-        decoderValid = RegArray(Bits(1), 1, initializer=[1])
-        cnt = RegArray(Bits(32), 1)
-        (cnt & self)[0] <= cnt[0] + Bits(32)(1)
-        valid = cnt[0][0:0] == Bits(1)(0)
-        (decoderValid & self)[0] <= valid
-
-        with Condition(valid):
-            inst = self.instruction.pop()
-            parseInst(inst)
-
-        return decoderValid
