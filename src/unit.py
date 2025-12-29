@@ -30,9 +30,10 @@ def buildSys():
         alu = ALU()
 
         driver.build(iCache)
-        iCache.build(rs, rob)
-        rob.build(rf, rs)
+
+        a_flushTag = rob.build(rf, rs)
         alu.build(rob)
-        rs.build(rf, alu)
+        rs.build(rf, alu,a_flushTag)
+        iCache.build(rs, rob,a_flushTag)
 
     return sys

@@ -8,6 +8,8 @@ from unit import buildSys
 from contextlib import contextmanager
 from pathlib import Path
 
+from decoder import Decoder
+
 # 先定义上下文管理器，用于临时抑制输出
 @contextmanager
 def _suppress_output():

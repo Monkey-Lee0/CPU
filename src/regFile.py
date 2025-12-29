@@ -15,3 +15,7 @@ class RegFile:
     def log(self):
         for i in range(32):
             log("{}->regs:{} id:{}", Bits(32)(i), self.regs[i], self.dependence[i])
+
+    def clearDependency(self):
+        for i in range(32):
+            self.dependence[i] = Bits(32)(0)

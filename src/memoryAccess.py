@@ -12,7 +12,7 @@ class ICache(Module):
         })
 
     @module.combinational
-    def build(self, rs, rob):
+    def build(self, rs, rob,flushTag):
         pc = RegArray(Bits(32), 1)
         pc_cache = RegArray(Bits(32), 1)
         robId = RegArray(Bits(32), 1, [1])
@@ -22,7 +22,7 @@ class ICache(Module):
         lastInst = RegArray(Bits(32), 1)
 
         valid = Bits(1)(0)
-        for i in range(rs.itemSize):
+        for i in range(rs.rsSize):
             valid = valid | (~rs.busy[i])
 
         with Condition(start):
