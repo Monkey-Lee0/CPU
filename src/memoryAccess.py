@@ -1,10 +1,12 @@
 from assassyn.frontend import *
 from decoder import *
+from utils import ValArray
 
 class ICache(Module):
     def __init__(self, cacheSize: int, init_file):
         self.cacheSize = cacheSize
-        self.cachePool = []
+        self.cachePool = ValArray(Bits(32), cacheSize, self)
+        self.id = ValArray(Bits(32), cacheSize, self)
         self.sram = SRAM(32, 16384, init_file)
         super().__init__(ports={
             'start':Port(Bits(1)),
@@ -12,8 +14,6 @@ class ICache(Module):
 
     @module.combinational
     def build(self):
-        for i in range(self.cacheSize):
-            self.cachePool.append((RegArray(Bits(32), 1), RegArray(Bits(32), 1)))
         pc = RegArray(Bits(32), 1)
         pc_cache = RegArray(Bits(32), 1)
         start = self.start.peek()
@@ -30,20 +30,20 @@ class ICache(Module):
             cnt = Bits(32)(0)
             inst = Bits(32)(0)
             for i in range(self.cacheSize):
-                zero = self.cachePool[i][1][0] == Bits(32)(0)
-                changeInst = (self.cachePool[i][1][0] == pc[0] + Bits(32)(1)) & valid
+                zero = self.id[i].get() == Bits(32)(0)
+                changeInst = (self.id[i].get() == pc[0] + Bits(32)(1)) & valid
                 # log('!!! {} {} {} {}', Bits(32)(i), changeInst, self.cachePool[i][1][0], self.cachePool[i][0][0])
-                inst = changeInst.select(self.cachePool[i][0][0], inst)
+                inst = changeInst.select(self.cachePool[i].get(), inst)
 
-                newValue0 = self.cachePool[i][0][0]
+                newValue0 = self.cachePool[i].get()
                 newValue0 = (zero & hasValue).select(self.sram.dout[0], newValue0)
                 newValue0 = changeInst.select(Bits(32)(0), newValue0)
-                (self.cachePool[i][0] & self)[0] <= newValue0
+                self.cachePool[i] <= newValue0
 
-                newValue1 = self.cachePool[i][1][0]
+                newValue1 = self.id[i].get()
                 newValue1 = (zero & hasValue).select(pc_cache[0], newValue1)
                 newValue1 = changeInst.select(Bits(32)(0), newValue1)
-                (self.cachePool[i][1] & self)[0] <= newValue1
+                self.id[i] <= newValue1
 
                 cnt = zero.select(cnt, cnt + Bits(32)(1))
                 hasValue = zero.select(Bits(1)(0), hasValue)
