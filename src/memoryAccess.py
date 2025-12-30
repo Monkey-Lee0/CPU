@@ -10,7 +10,8 @@ class ICache(Module):
         super().__init__(ports={
             'start':Port(Bits(1)),
             'flushTag':Port(Bits(1)),
-            'newPC':Port(Bits(32))
+            'newPC':Port(Bits(32)),
+            'newId':Port(Bits(32))
         })
 
     @module.combinational
@@ -33,6 +34,7 @@ class ICache(Module):
             with Condition(flush):
                 self.flushTag.pop()
                 newPC = self.newPC.pop()
+                newId = self.newId.pop()
                 (pc & self)[0] <= newPC
                 (pc_cache & self)[0] <= newPC
                 for i in range(self.cacheSize):
@@ -40,6 +42,7 @@ class ICache(Module):
                     self.id[i] = Bits(32)(0)
                 (re & self)[0] <= Bits(1)(0)
                 (lastInst & self)[0] <= self.sram.dout[0]
+                (robId & self)[0] <= newId + Bits(32)(1)
 
             with Condition(~flush):
                 valid = Bits(1)(0)

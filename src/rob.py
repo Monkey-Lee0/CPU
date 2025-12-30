@@ -120,6 +120,7 @@ class ROB(Module):
                     rs.flushTag.push(Bits(1)(1))
                     ic.flushTag.push(Bits(1)(1))
                     ic.newPC.push(self.anotherPC[self.l[0]])
+                    ic.newId.push(self.ID[self.l[0]])
 
         # flush
         with Condition(flush[0]):
@@ -127,6 +128,8 @@ class ROB(Module):
             popAllPorts(self)
             for i in range(self.robSize):
                 self.clear(i)
+            (self.l & self)[0] <= Bits(32)(0)
+            (self.r & self)[0] <= Bits(32)(0)
             rf.clearDependency()
             (flush & self)[0] <= Bits(1)(0)
 

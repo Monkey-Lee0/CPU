@@ -23,7 +23,7 @@ def buildSys():
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        iCache = ICache(8, 'workload/loop.data')
+        iCache = ICache(8, 'workload/parallel.data')
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)
