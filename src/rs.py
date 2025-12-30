@@ -88,7 +88,6 @@ class RS(Module):
                 canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0))
                 with Condition(tag & canExecute):
                     instType = idToType(self.inst[i])
-                    log("{} {} {} {}", Bits(32)(i), canExecute, self.inst[i], instType)
                     # type R
                     with Condition(instType == Bits(32)(1)):
                         alu.instId.push(self.inst[i])

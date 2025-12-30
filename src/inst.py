@@ -3,7 +3,6 @@ from assassyn.frontend import *
 def bitsToInt(b, bit1, bit2):
     mxVal = Bits(32)(1) << Bits(32)(bit1-1)
     bInt = b.bitcast(Int(bit2))
-    # log("{} {}", b, (b < mxVal).select(bInt, bInt - mxVal - mxVal))
     return (b < mxVal).select(bInt, bInt - mxVal - mxVal)
 
 class Inst:
