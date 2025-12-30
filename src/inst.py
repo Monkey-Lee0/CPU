@@ -31,21 +31,23 @@ class Inst:
         self.imm = cond.select(other.imm, self.imm)
         return self
 
-    def print(self, Str = ''):
+    def print(self):
+        with Condition(self.type == Bits(32)(0)):
+            log('illegal')
         with Condition(self.type == Bits(32)(1)): # type R
-            printInst(self.id, Str+'${} ${} ${}', self.rd, self.rs1, self.rs2)
+            log('%{} ${} ${} ${}', self.id, self.rd, self.rs1, self.rs2)
         with Condition(self.type == Bits(32)(2)): # type I
-            printInst(self.id, Str+'${} ${} {}', self.rd, self.rs1, self.imm)
+            log('%{} ${} ${} {}', self.id, self.rd, self.rs1, self.imm)
         with Condition(self.type == Bits(32)(3)):
-            printInst(self.id, Str+'${} ${} {}', self.rd, self.rs1, self.imm)
+            log('%{} ${} ${} {}', self.id, self.rd, self.rs1, self.imm)
         with Condition(self.type == Bits(32)(4)):
-            printInst(self.id, Str+'${} {}(${})', self.rs2, self.imm, self.rs1)
+            log('%{} ${} {}(${})', self.id, self.rs2, self.imm, self.rs1)
         with Condition(self.type == Bits(32)(5)):
-            printInst(self.id, Str+'${} ${} {}', self.rs1, self.rs2, bitsToInt(self.imm, 13, 32))
+            log('%{} ${} ${} {}', self.id, self.rs1, self.rs2, bitsToInt(self.imm, 13, 32))
         with Condition(self.type == Bits(32)(6)):
-            printInst(self.id, Str+'${} {}', self.rd, self.imm)
+            log('%{} ${} {}', self.id, self.rd, self.imm)
         with Condition(self.type == Bits(32)(7)):
-            printInst(self.id, Str+'${} {}', self.rd, self.imm)
+            log('%{} ${} {}', self.id, self.rd, self.imm)
 
 RInst = { # funct3 - funct7 -> id
     Bits(32)(0b0000000000):Bits(32)(1), # add
@@ -106,44 +108,80 @@ JInst = {
 }
 
 InstName = {
-    Bits(32)(1):'add',
-    Bits(32)(2):'sub',
-    Bits(32)(3):'and',
-    Bits(32)(4):'or',
-    Bits(32)(5):'xor',
-    Bits(32)(6):'sll',
-    Bits(32)(7):'srl',
-    Bits(32)(8):'sra',
-    Bits(32)(9):'slt',
-    Bits(32)(10):'sltu',
-    Bits(32)(11):'addi',
-    Bits(32)(12):'andi',
-    Bits(32)(13):'ori',
-    Bits(32)(14):'xori',
-    Bits(32)(15):'slli',
-    Bits(32)(16):'srli',
-    Bits(32)(17):'srai',
-    Bits(32)(18):'slti',
-    Bits(32)(19):'sltiu',
-    Bits(32)(20):'lb',
-    Bits(32)(21):'lbu',
-    Bits(32)(22):'lh',
-    Bits(32)(23):'lhu',
-    Bits(32)(24):'lw',
-    Bits(32)(25):'sb',
-    Bits(32)(26):'sh',
-    Bits(32)(27):'sw',
-    Bits(32)(28):'beq',
-    Bits(32)(29):'bge',
-    Bits(32)(30):'bgeu',
-    Bits(32)(31):'blt',
-    Bits(32)(32):'bltu',
-    Bits(32)(33):'bne',
-    Bits(32)(34):'jal',
-    Bits(32)(35):'jalr',
-    Bits(32)(36):'auipc',
-    Bits(32)(37):'lui'
+    'illegal',
+    'add',
+    'sub',
+    'and',
+    'or',
+    'xor',
+    'sll',
+    'srl',
+    'sra',
+    'slt',
+    'sltu',
+    'addi',
+    'andi',
+    'ori',
+    'xori',
+    'slli',
+    'srli',
+    'srai',
+    'slti',
+    'sltiu',
+    'lb',
+    'lbu',
+    'lh',
+    'lhu',
+    'lw',
+    'sb',
+    'sh',
+    'sw',
+    'beq',
+    'bge',
+    'bgeu',
+    'blt',
+    'bltu',
+    'bne',
+    'jal',
+    'jalr',
+    'auipc',
+    'lui'
 }
+
+RegName = [
+    'zero',
+    'ra',
+    'sp',
+    'gp',
+    'tp',
+    't0',
+    't1',
+    't2',
+    's0',
+    's1',
+    'a0',
+    'a1',
+    'a2',
+    'a3',
+    'a4',
+    'a5',
+    'a6',
+    'a7',
+    's2',
+    's3',
+    's4',
+    's5',
+    's6',
+    's7',
+    's8',
+    's9',
+    's10',
+    's11',
+    't3',
+    't4',
+    't5',
+    't6'
+]
 
 idToTypeDict = {
     Bits(32)(0):Bits(32)(0),
@@ -191,10 +229,3 @@ def idToType(instId):
     for Id, Type in idToTypeDict.items():
         res = (Id == instId).select(Type, res)
     return res
-
-def printInst(instId:Bits, format:str, *args):
-    with Condition(instId == Bits(32)(0)):
-        log('illegal')
-    for expectId, name in InstName.items():
-        with Condition(instId == expectId):
-            log(name+' '+format, *args)
