@@ -22,7 +22,7 @@ class ROB(Module):
         self.inst = ValArray(Bits(32), robSize, self)
         self.dest = ValArray(Bits(32), robSize, self)
         self.value = ValArray(Bits(32), robSize, self)
-        self.expect = ValArray(Bits(32), robSize, self)
+        self.expect = ValArray(Bits(1), robSize, self)
         self.anotherPC = ValArray(Bits(32), robSize, self)
         self.ID = ValArray(Bits(32), robSize, self)
         self.l = RegArray(Bits(32), 1, [0])
@@ -62,60 +62,67 @@ class ROB(Module):
 
     @module.combinational
     def build(self, rf, rs):
-        # issue in rob
-        with Condition(self.type.valid()):
-            instType = self.type.pop()
-            instId = self.id.pop()
-            rd = self.rd.pop()
-            rs1 = self.rs1.pop()
-            rs2 = self.rs2.pop()
-            imm = self.imm.pop()
-            newId = self.newId.pop()
-            expect = self.expectV.pop()
-            anotherPC = self.otherPC.pop()
 
-            with Condition(rd != Bits(32)(0)):
-                rf.build(rd, rf.regs[rd], newId)
-                self.push(Bits(1)(1), instId, rd, Bits(32)(0), newId, expect, anotherPC)
+        flush = RegArray(Bits(1), 1)
+        newPC = RegArray(Bits(32), 1)
 
-        # receive value from ALU
-        with Condition(self.resFromALU.valid()):
-            res = self.resFromALU.pop()
-            robId = self.idFromALU.pop()
-            for i in range(self.robSize):
-                # cur = Bits(32)(i)
-                # inside = ((self.l <= cur) & (cur < self.r)) | ((self.l > self.r) & ((cur < self.r) | (cur >= self.l)))
-                with Condition(self.ID[i] == robId):
-                    self.value[i] = res
-                    self.busy[i] = Bits(1)(0)
+        with (Condition(~flush[0])):
+            # issue in rob
+            with Condition(self.type.valid()):
+                instType = self.type.pop()
+                instId = self.id.pop()
+                rd = self.rd.pop()
+                rs1 = self.rs1.pop()
+                rs2 = self.rs2.pop()
+                imm = self.imm.pop()
+                newId = self.newId.pop()
+                expect = self.expectV.pop()
+                anotherPC = self.otherPC.pop()
 
-        # commit
-        topPrepared = (self.l[0] != self.r[0]) & (~self.busy[self.l[0]])
-        predictionFailed = ((instType == Bits(32)(5)) | (instType == Bits(32)(7))) & (self.value[self.l[0]]!=self.expect[self.l[0]])
-        with Condition(topPrepared):
-            commitId = self.ID[self.l[0]]
-            log("commit {} {}", commitId, self.value[self.l[0]])
-            # deliver to rs
-            rs.robId.push(commitId)
-            rs.robRes.push(self.value[self.l[0]])
-            self.pop()
-            # modify in rf
-            instType = idToType(self.inst[i])
-            with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2))):
-                dest = self.dest[self.l[0]]
-                rf.build(dest, self.value[self.l[0]],
-                         (rf.dependence[dest] == commitId).select(Bits(32)(0), rf.dependence[dest]))
+                with Condition(rd != Bits(32)(0)):
+                    rf.build(rd, rf.regs[rd], newId)
+                    self.push(Bits(1)(1), instId, rd, Bits(32)(0), newId, expect, anotherPC)
 
-            # flush
-            with Condition(predictionFailed):
+            # receive value from ALU
+            with Condition(self.resFromALU.valid()):
+                res = self.resFromALU.pop()
+                robId = self.idFromALU.pop()
                 for i in range(self.robSize):
-                    self.clear(Bits(32)(i))
-                rf.clear()
+                    with Condition(self.ID[i] == robId):
+                        self.value[i] = res
+                        self.busy[i] = Bits(1)(0)
 
-        flush = RegArray(Bits(32), 1)
-        (flush & self)[0] <= topPrepared & predictionFailed
+            # commit
+            topPrepared = (self.l[0] != self.r[0]) & (~self.busy[self.l[0]])
+            predictionFailed = ((instType == Bits(32)(5)) | (instType == Bits(32)(7))) & \
+                (self.value[self.l[0]]!=self.expect[self.l[0]])
+            (flush & self)[0] <= topPrepared & predictionFailed
+
+            with Condition(topPrepared):
+                commitId = self.ID[self.l[0]]
+                log("commit {} {}", commitId, self.value[self.l[0]])
+                # deliver to rs
+                rs.robId.push(commitId)
+                rs.robRes.push(self.value[self.l[0]])
+                self.pop()
+                # modify in rf
+                instType = idToType(self.inst[i])
+                with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2))):
+                    dest = self.dest[self.l[0]]
+                    rf.build(dest, self.value[self.l[0]],
+                             (rf.dependence[dest] == commitId).select(Bits(32)(0), rf.dependence[dest]))
+
+                with Condition(predictionFailed):
+                    (newPC & self)[0] <= self.anotherPC[self.l[0]]
+
+        # flush
+        with Condition(flush[0]):
+            for i in range(self.robSize):
+                self.clear(Bits(32)(i))
+            rf.clearDependency()
+            (flush & self)[0] <= Bits(1)(0)
 
         # rf.log()
         # self.log()
 
-        return flush
+        return flush, newPC

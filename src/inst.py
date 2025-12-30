@@ -1,5 +1,8 @@
 from assassyn.frontend import *
 
+def bitsToInt(b, bit1, bit2):
+    return b.bitcast(Int(bit2))<<Int(32)(bit2-bit1)>>Int(32)(bit2-bit1)
+
 class Inst:
 
     type: Bits
@@ -36,7 +39,7 @@ class Inst:
         with Condition(self.type == Bits(32)(4)):
             printInst(self.id, Str+'{} {}({})', self.rs2, self.imm, self.rs1)
         with Condition(self.type == Bits(32)(5)):
-            printInst(self.id, Str+'{} {} {}', self.rs1, self.rs2, self.imm)
+            printInst(self.id, Str+'{} {} {}', self.rs1, self.rs2, bitsToInt(self.imm, 12, 32))
         with Condition(self.type == Bits(32)(6)):
             printInst(self.id, Str+'{} {}', self.rd, self.imm)
         with Condition(self.type == Bits(32)(7)):
