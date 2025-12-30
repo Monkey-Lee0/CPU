@@ -33,19 +33,19 @@ class Inst:
 
     def print(self, Str = ''):
         with Condition(self.type == Bits(32)(1)): # type R
-            printInst(self.id, Str+'{} {} {}', self.rd, self.rs1, self.rs2)
+            printInst(self.id, Str+'${} ${} ${}', self.rd, self.rs1, self.rs2)
         with Condition(self.type == Bits(32)(2)): # type I
-            printInst(self.id, Str+'{} {} {}', self.rd, self.rs1, self.imm)
+            printInst(self.id, Str+'${} ${} {}', self.rd, self.rs1, self.imm)
         with Condition(self.type == Bits(32)(3)):
-            printInst(self.id, Str+'{} {} {}', self.rd, self.rs1, self.imm)
+            printInst(self.id, Str+'${} ${} {}', self.rd, self.rs1, self.imm)
         with Condition(self.type == Bits(32)(4)):
-            printInst(self.id, Str+'{} {}({})', self.rs2, self.imm, self.rs1)
+            printInst(self.id, Str+'${} {}(${})', self.rs2, self.imm, self.rs1)
         with Condition(self.type == Bits(32)(5)):
-            printInst(self.id, Str+'{} {} {}', self.rs1, self.rs2, bitsToInt(self.imm, 13, 32))
+            printInst(self.id, Str+'${} ${} {}', self.rs1, self.rs2, bitsToInt(self.imm, 13, 32))
         with Condition(self.type == Bits(32)(6)):
-            printInst(self.id, Str+'{} {}', self.rd, self.imm)
+            printInst(self.id, Str+'${} {}', self.rd, self.imm)
         with Condition(self.type == Bits(32)(7)):
-            printInst(self.id, Str+'{} {}', self.rd, self.imm)
+            printInst(self.id, Str+'${} {}', self.rd, self.imm)
 
 RInst = { # funct3 - funct7 -> id
     Bits(32)(0b0000000000):Bits(32)(1), # add
