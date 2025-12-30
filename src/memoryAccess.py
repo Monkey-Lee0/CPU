@@ -19,16 +19,17 @@ class ICache(Module):
         pc_cache = RegArray(Bits(32), 1)
         robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
-        re = RegArray(Bits(1), 1)
+        re = RegArray(Bits(1), 1, [1])
         lastInst = RegArray(Bits(32), 1)
 
-        valid = Bits(1)(0)
-        for i in range(rs.rsSize):
-            valid = valid | (~rs.busy[i])
+        flush = self.flushTag.valid()
+        cnt = Bits(32)(0)
+        for i in range(self.cacheSize):
+            cnt = cnt + (self.id[i] != Bits(32)(0))
+        self.sram.build(Bits(1)(0), start & (~flush) & (cnt <= Bits(32)(self.cacheSize - 1)), pc_cache[0], Bits(32)(0))
 
         with Condition(start):
             # flush
-            flush = self.flushTag.valid()
             with Condition(flush):
                 self.flushTag.pop()
                 newPC = self.newPC.pop()
@@ -41,14 +42,17 @@ class ICache(Module):
                 (lastInst & self)[0] <= self.sram.dout[0]
 
             with Condition(~flush):
-                self.sram.build(Bits(1)(0), re[0], pc_cache[0], Bits(32)(0))
+                valid = Bits(1)(0)
+                for i in range(rs.rsSize):
+                    valid = valid | (~rs.busy[i])
+                valid = valid & (rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize))
+
                 hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0])
                 cnt = Bits(32)(0)
                 inst = Bits(32)(0)
                 for i in range(self.cacheSize):
                     zero = self.id[i] == Bits(32)(0)
                     changeInst = (self.id[i] == pc[0] + Bits(32)(1)) & valid
-                    # log('!!! {} {} {} {}', Bits(32)(i), changeInst, self.cachePool[i][1][0], self.cachePool[i][0][0])
                     inst = changeInst.select(self.cachePool[i], inst)
 
                     newValue0 = self.cachePool[i]
@@ -61,15 +65,10 @@ class ICache(Module):
                     newValue1 = changeInst.select(Bits(32)(0), newValue1)
                     self.id[i] = newValue1
 
-                    cnt = cnt + (~zero)
                     hasValue = zero.select(Bits(1)(0), hasValue)
 
                 with Condition(self.sram.dout[0] != Bits(32)(0)):
                     (lastInst & self)[0] <= self.sram.dout[0]
-                (re & self)[0] <= (cnt <= Bits(32)(self.cacheSize - 1))
-
-                log("{} {} {}", cnt, inst, self.sram.dout[0])
-
                 (pc_cache & self)[0] <= pc_cache[0] + (cnt <= Bits(32)(self.cacheSize - 1))
                 (pc & self)[0] <= pc[0] + (inst != Bits(32)(0))
 

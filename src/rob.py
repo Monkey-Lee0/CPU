@@ -45,7 +45,7 @@ class ROB(Module):
         (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.robSize)
         self.clear(self.l[0])
 
-    def clear(self, pos:Value):
+    def clear(self, pos):
         self.busy[pos] = Bits(1)(0)
         self.inst[pos] = Bits(32)(0)
         self.dest[pos] = Bits(32)(0)
@@ -66,6 +66,9 @@ class ROB(Module):
         flush = RegArray(Bits(1), 1)
 
         with (Condition(~flush[0])):
+            # to check whether issue and commit into the same dest
+            issueDest = self.type.valid().select(self.rd.peek(), Bits(32)(0))
+
             # issue in rob
             with Condition(self.type.valid()):
                 instType = self.type.pop()
@@ -88,7 +91,6 @@ class ROB(Module):
             with Condition(self.resFromALU.valid()):
                 res = self.resFromALU.pop()
                 robId = self.idFromALU.pop()
-                log("{} {}", robId, res)
                 for i in range(self.robSize):
                     with Condition(self.ID[i] == robId):
                         self.value[i] = res
@@ -97,9 +99,8 @@ class ROB(Module):
             # commit
             instType = idToType(self.inst[self.l[0]])
             topPrepared = (self.l[0] != self.r[0]) & (~self.busy[self.l[0]])
-            log("{} ??? {} {} {}", instType, topPrepared, self.l[0], self.r[0])
             predictionFailed = ((instType == Bits(32)(5)) | (instType == Bits(32)(7))) & \
-                (self.value[self.l[0]]!=self.expect[self.l[0]])
+                (self.value[self.l[0]] != self.expect[self.l[0]])
 
             with Condition(topPrepared):
                 commitId = self.ID[self.l[0]]
@@ -111,11 +112,8 @@ class ROB(Module):
                 # modify in rf
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2))):
                     dest = self.dest[self.l[0]]
-                    rf.build(dest, self.value[self.l[0]],
-                             (rf.dependence[dest] == commitId).select(Bits(32)(0), rf.dependence[dest]))
-
-                with Condition(instType == Bits(32)(5)):
-                    log("commit {} {}", commitId, self.value[self.l[0]])
+                    with Condition((rf.dependence[dest] == commitId) & (dest != issueDest)):
+                        rf.build(dest, self.value[self.l[0]], Bits(32)(0))
 
                 with Condition(predictionFailed):
                     (flush & self)[0] <= Bits(1)(1)
@@ -128,7 +126,7 @@ class ROB(Module):
             log("prediction failed, flush")
             popAllPorts(self)
             for i in range(self.robSize):
-                self.clear(Bits(32)(i))
+                self.clear(i)
             rf.clearDependency()
             (flush & self)[0] <= Bits(1)(0)
 
