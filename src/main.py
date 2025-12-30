@@ -8,7 +8,6 @@ from assassyn.backend import elaborate, config
 
 from unit import buildSys
 
-# 先定义上下文管理器，用于临时抑制输出
 @contextmanager
 def _suppress_output():
     import sys

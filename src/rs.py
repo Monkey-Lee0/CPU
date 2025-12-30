@@ -60,8 +60,8 @@ class RS(Module):
                             self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i] = Bits(32)(0)
-                        # type I
-                        with Condition(instType == Bits(32)(2)):
+                        # type I/I*
+                        with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                             self.busy[i] = Bits(1)(1)
                             self.inst[i] = instId
                             self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
@@ -94,8 +94,8 @@ class RS(Module):
                         alu.lhs.push(self.vj[i])
                         alu.rhs.push(self.vk[i])
                         alu.robId.push(self.dest[i])
-                    # type I
-                    with Condition(instType == Bits(32)(2)):
+                    # type I/I*
+                    with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                         alu.instId.push(self.inst[i])
                         alu.lhs.push(self.vj[i])
                         alu.rhs.push(self.A[i])
