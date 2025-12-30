@@ -1,5 +1,5 @@
 from regFile import *
-from utils import ValArray
+from utils import ValArray, popAllPorts
 from inst import idToType
 
 class RS(Module):
@@ -13,8 +13,8 @@ class RS(Module):
             'imm':Port(Bits(32)),
             'newId':Port(Bits(32)),
             'robId':Port(Bits(32)),
-            'robRes':Port(Bits(32))
-
+            'robRes':Port(Bits(32)),
+            'flushTag':Port(Bits(1))
         })
 
         self.rsSize = rsSize
@@ -28,13 +28,15 @@ class RS(Module):
         self.A = ValArray(Bits(32), rsSize, self)
 
     @module.combinational
-    def build(self, rf, alu, flushTag):
+    def build(self, rf, alu):
         # flush
-        with Condition(flushTag[0]):
+        flush = self.flushTag.valid()
+        with Condition(flush):
             for i in range(self.rsSize):
                 self.clear(i)
+            popAllPorts(self)
 
-        with Condition(~flushTag[0]):
+        with Condition(~flush):
             # issue into rs
             with Condition(self.type.valid()):
                 instType = self.type.pop()
@@ -68,6 +70,16 @@ class RS(Module):
                             self.qk[i] = Bits(32)(0)
                             self.dest[i] = newId
                             self.A[i] = imm
+                        # type B
+                        with Condition(instType == Bits(32)(5)):
+                            self.busy[i] = Bits(1)(1)
+                            self.inst[i] = instId
+                            self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
+                            self.vk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
+                            self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
+                            self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
+                            self.dest[i] = newId
+                            self.A[i]= Bits(32)(0)
                     tag = tag & self.busy[i]
 
             # forward into alu
@@ -88,6 +100,12 @@ class RS(Module):
                         alu.instId.push(self.inst[i])
                         alu.lhs.push(self.vj[i])
                         alu.rhs.push(self.A[i])
+                        alu.robId.push(self.dest[i])
+                    # type B
+                    with Condition(instType == Bits(32)(5)):
+                        alu.instId.push(self.inst[i])
+                        alu.lhs.push(self.vj[i])
+                        alu.rhs.push(self.vk[i])
                         alu.robId.push(self.dest[i])
 
                     self.clear(i)

@@ -31,9 +31,9 @@ def buildSys():
 
         driver.build(iCache)
 
-        flushTag, newPC = rob.build(rf, rs)
+        rob.build(rf, iCache, rs)
         alu.build(rob)
-        rs.build(rf, alu, flushTag)
-        iCache.build(rs, rob, flushTag, newPC)
+        rs.build(rf, alu)
+        iCache.build(rs, rob)
 
     return sys

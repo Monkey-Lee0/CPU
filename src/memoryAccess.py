@@ -9,15 +9,17 @@ class ICache(Module):
         self.sram = SRAM(32, 16384, init_file)
         super().__init__(ports={
             'start':Port(Bits(1)),
+            'flushTag':Port(Bits(1)),
+            'newPC':Port(Bits(32))
         })
 
     @module.combinational
-    def build(self, rs, rob, flushTag, newPC):
+    def build(self, rs, rob):
         pc = RegArray(Bits(32), 1)
         pc_cache = RegArray(Bits(32), 1)
         robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
-        re = RegArray(Bits(1), 1, initializer=[1])
+        re = RegArray(Bits(1), 1)
         lastInst = RegArray(Bits(32), 1)
 
         valid = Bits(1)(0)
@@ -26,17 +28,19 @@ class ICache(Module):
 
         with Condition(start):
             # flush
-            # with Condition(flushTag[0]):
-            #     (pc & self)[0] <= newPC[0]
-            #     (pc_cache & self)[0] <= newPC[0]
-            #     for i in range(self.cacheSize):
-            #         self.cachePool[i] = Bits(32)(0)
-            #         self.id[i] = Bits(32)(0)
-            #     (self.sram.dout & self)[0] <= Bits(32)(0)
-            #     (re & self)[0] <= Bits(1)(0)
-            #     (lastInst & self)[0] <= Bits(32)(0)
+            flush = self.flushTag.valid()
+            with Condition(flush):
+                self.flushTag.pop()
+                newPC = self.newPC.pop()
+                (pc & self)[0] <= newPC
+                (pc_cache & self)[0] <= newPC
+                for i in range(self.cacheSize):
+                    self.cachePool[i] = Bits(32)(0)
+                    self.id[i] = Bits(32)(0)
+                (re & self)[0] <= Bits(1)(0)
+                (lastInst & self)[0] <= self.sram.dout[0]
 
-            with Condition(~flushTag[0]):
+            with Condition(~flush):
                 self.sram.build(Bits(1)(0), re[0], pc_cache[0], Bits(32)(0))
                 hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0])
                 cnt = Bits(32)(0)
@@ -63,6 +67,9 @@ class ICache(Module):
                 with Condition(self.sram.dout[0] != Bits(32)(0)):
                     (lastInst & self)[0] <= self.sram.dout[0]
                 (re & self)[0] <= (cnt <= Bits(32)(self.cacheSize - 1))
+
+                log("{} {} {}", cnt, inst, self.sram.dout[0])
+
                 (pc_cache & self)[0] <= pc_cache[0] + (cnt <= Bits(32)(self.cacheSize - 1))
                 (pc & self)[0] <= pc[0] + (inst != Bits(32)(0))
 
@@ -90,8 +97,11 @@ class ICache(Module):
 
                     # branch prediction(currently, pc=pc+4)
                     with Condition(res.type == Bits(32)(5)):
-                        rob.expect = Bits(1)(0)
-                        rob.anotherPC = pc[0] + (res.imm >> Bits(32)(2))
+                        rob.expectV.push(Bits(32)(0))
+                        rob.otherPC.push(pc[0] + (bitsToInt(res.imm, 13, 32) >> Bits(32)(2)))
+                    with Condition(res.type != Bits(32)(5)):
+                        rob.expectV.push(Bits(32)(0))
+                        rob.otherPC.push(Bits(32)(0))
 
                     (robId & self)[0] <= robId[0] + Bits(32)(1)
 

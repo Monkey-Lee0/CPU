@@ -24,3 +24,8 @@ class ValArray:
             for i in range(self.size):
                 with Condition(idx == Bits(32)(i)):
                     (self.arr[i] & self.owner)[0] <= value
+
+def popAllPorts(unit:Module):
+    for port in unit.ports:
+        with Condition(port.valid()):
+            port.pop()

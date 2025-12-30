@@ -44,12 +44,12 @@ class ALU(Module):
                 Bits(32)(25): lhs + rhs,
                 Bits(32)(26): lhs + rhs,
                 Bits(32)(27): lhs + rhs,
-                # Bits(32)(28): (lhs == rhs).zext(Bits(32)),
-                # Bits(32)(29): (lhs.bitcast(Int(32)) >= rhs.bitcast(Int(32))).zext(Bits(32)),
-                # Bits(32)(30): (lhs >= rhs).zext(Bits(32)),
-                # Bits(32)(31): (lhs.bitcast(Int(32)) < rhs.bitcast(Int(32))).zext(Bits(32)),
-                # Bits(32)(32): (lhs < rhs).zext(Bits(32)),
-                # Bits(32)(33): (lhs != rhs).zext(Bits(32)),
+                Bits(32)(28): (lhs == rhs).zext(Bits(32)),
+                Bits(32)(29): (lhs.bitcast(Int(32)) >= rhs.bitcast(Int(32))).zext(Bits(32)),
+                Bits(32)(30): (lhs >= rhs).zext(Bits(32)),
+                Bits(32)(31): (lhs.bitcast(Int(32)) < rhs.bitcast(Int(32))).zext(Bits(32)),
+                Bits(32)(32): (lhs < rhs).zext(Bits(32)),
+                Bits(32)(33): (lhs != rhs).zext(Bits(32)),
                 # TODO
                 Bits(32)(37): rhs << Bits(32)(12),
                 None: Bits(32)(0)
