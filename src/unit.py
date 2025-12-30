@@ -23,7 +23,7 @@ def buildSys():
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        iCache = ICache(8, 'workload/loop.data')
+        iCache = ICache(8, 'workload/parallel.data')
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)
@@ -31,9 +31,9 @@ def buildSys():
 
         driver.build(iCache)
 
-        flushTag, newPC = rob.build(rf, rs)
+        rob.build(rf, iCache, rs)
         alu.build(rob)
-        rs.build(rf, alu, flushTag)
-        iCache.build(rs, rob, flushTag, newPC)
+        rs.build(rf, alu)
+        iCache.build(rs, rob)
 
     return sys

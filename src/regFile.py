@@ -6,7 +6,6 @@ class RegFile:
         super().__init__()
         self.regs = ValArray(Bits(32), 32, rob)
         self.dependence = ValArray(Bits(32), 32, rob)
-        self.owner = rob
 
     def build(self, wPos, wData, wId):
         self.regs[wPos] = wData

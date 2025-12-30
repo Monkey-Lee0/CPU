@@ -1,72 +1,94 @@
 from decoder import *
 from utils import ValArray
+from predictor import predictor
 
 class ICache(Module):
     def __init__(self, cacheSize: int, init_file):
         self.cacheSize = cacheSize
         self.cachePool = ValArray(Bits(32), cacheSize, self)
-        self.id = ValArray(Bits(32), cacheSize, self)
+        self.instPC = ValArray(Bits(32), cacheSize, self)
         self.sram = SRAM(32, 16384, init_file)
+        self.l = RegArray(Bits(32), 1)
+        self.r = RegArray(Bits(32), 1)
         super().__init__(ports={
             'start':Port(Bits(1)),
+            'flushTag':Port(Bits(1)),
+            'newPC':Port(Bits(32)),
+            'newId':Port(Bits(32))
         })
 
+    def push(self, value, pc):
+        (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
+        self.cachePool[self.r[0]] = value
+        self.instPC[self.r[0]] = pc
+
+    def clear(self, pos):
+        self.cachePool[pos] <= Bits(32)(0)
+        self.instPC[pos] = Bits(32)(0)
+
+    def pop(self):
+        (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
+        self.clear(self.l[0])
+
     @module.combinational
-    def build(self, rs, rob, flushTag, newPC):
-        pc = RegArray(Bits(32), 1)
+    def build(self, rs, rob):
         pc_cache = RegArray(Bits(32), 1)
         robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
-        re = RegArray(Bits(1), 1, initializer=[1])
         lastInst = RegArray(Bits(32), 1)
 
-        valid = Bits(1)(0)
-        for i in range(rs.rsSize):
-            valid = valid | (~rs.busy[i])
+        flush = self.flushTag.valid()
+        re = start & (~flush) & ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0])
+        self.sram.build(Bits(1)(0), re, pc_cache[0], Bits(32)(0))
 
-        with Condition(start):
+        with (Condition(start)):
             # flush
-            # with Condition(flushTag[0]):
-            #     (pc & self)[0] <= newPC[0]
-            #     (pc_cache & self)[0] <= newPC[0]
-            #     for i in range(self.cacheSize):
-            #         self.cachePool[i] = Bits(32)(0)
-            #         self.id[i] = Bits(32)(0)
-            #     (self.sram.dout & self)[0] <= Bits(32)(0)
-            #     (re & self)[0] <= Bits(1)(0)
-            #     (lastInst & self)[0] <= Bits(32)(0)
+            with Condition(flush):
+                self.flushTag.pop()
+                newPC = self.newPC.pop()
+                newId = self.newId.pop()
 
-            with Condition(~flushTag[0]):
-                self.sram.build(Bits(1)(0), re[0], pc_cache[0], Bits(32)(0))
-                hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0])
-                cnt = Bits(32)(0)
-                inst = Bits(32)(0)
+                (pc_cache & self)[0] <= newPC
+                (lastInst & self)[0] <= self.sram.dout[0]
+                (robId & self)[0] <= newId + Bits(32)(1)
+
+                (self.l & self)[0] <= Bits(32)(0)
+                (self.r & self)[0] <= Bits(32)(0)
+
                 for i in range(self.cacheSize):
-                    zero = self.id[i] == Bits(32)(0)
-                    changeInst = (self.id[i] == pc[0] + Bits(32)(1)) & valid
-                    # log('!!! {} {} {} {}', Bits(32)(i), changeInst, self.cachePool[i][1][0], self.cachePool[i][0][0])
-                    inst = changeInst.select(self.cachePool[i], inst)
+                    self.clear(i)
 
-                    newValue0 = self.cachePool[i]
-                    newValue0 = (zero & hasValue).select(self.sram.dout[0], newValue0)
-                    newValue0 = changeInst.select(Bits(32)(0), newValue0)
-                    self.cachePool[i] = newValue0
+            with Condition(~flush):
+                valid = Bits(1)(0)
+                for i in range(rs.rsSize):
+                    valid = valid | (~rs.busy[i])
+                valid = valid & (rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)) & (self.l[0] != self.r[0])
 
-                    newValue1 = self.id[i]
-                    newValue1 = (zero & hasValue).select(pc_cache[0], newValue1)
-                    newValue1 = changeInst.select(Bits(32)(0), newValue1)
-                    self.id[i] = newValue1
-
-                    cnt = cnt + (~zero)
-                    hasValue = zero.select(Bits(1)(0), hasValue)
+                # read from sram
+                hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0]) & \
+                           ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0])
+                with Condition(hasValue):
+                    self.push(self.sram.dout[0], pc_cache[0])
 
                 with Condition(self.sram.dout[0] != Bits(32)(0)):
                     (lastInst & self)[0] <= self.sram.dout[0]
-                (re & self)[0] <= (cnt <= Bits(32)(self.cacheSize - 1))
-                (pc_cache & self)[0] <= pc_cache[0] + (cnt <= Bits(32)(self.cacheSize - 1))
-                (pc & self)[0] <= pc[0] + (inst != Bits(32)(0))
 
-                with Condition(inst != Bits(32)(0)):
+                with Condition(hasValue):
+                    curInst = parseInst(self.sram.dout[0])
+                    with Condition(curInst.type != Bits(32)(5)):
+                        (pc_cache & self)[0] <= pc_cache[0] + Bits(32)(1)
+                    with Condition(curInst.type == Bits(32)(5)):
+                        curInst = parseInst(self.sram.dout[0])
+                        movement = bitsToInt(curInst.imm, 13, 32) >> Bits(32)(2)
+                        (pc_cache & self)[0] <= predictor(pc_cache[0] + movement, pc_cache[0] + Bits(32)(1))[1]
+
+                # issue
+                with Condition(valid):
+                    inst = self.cachePool[self.l[0]]
+                    pc = self.instPC[self.l[0]]
+                    self.pop()
+                    (robId & self)[0] <= robId[0] + Bits(32)(1)
+
                     # issue into rs
                     res = parseInst(inst)
                     log("issue {}", robId[0])
@@ -90,10 +112,13 @@ class ICache(Module):
 
                     # branch prediction(currently, pc=pc+4)
                     with Condition(res.type == Bits(32)(5)):
-                        rob.expect = Bits(1)(0)
-                        rob.anotherPC = pc[0] + (res.imm >> Bits(32)(2))
-
-                    (robId & self)[0] <= robId[0] + Bits(32)(1)
+                        movement = (bitsToInt(res.imm, 13, 32) >> Bits(32)(2))
+                        branch, _, otherPC = predictor(pc + movement, pc + Bits(32)(1))
+                        rob.expectV.push(branch.zext(Bits(32)))
+                        rob.otherPC.push(otherPC)
+                    with Condition(res.type != Bits(32)(5)):
+                        rob.expectV.push(Bits(32)(0))
+                        rob.otherPC.push(Bits(32)(0))
 
         rs.async_called()
         rob.async_called()

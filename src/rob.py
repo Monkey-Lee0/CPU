@@ -1,5 +1,6 @@
 from assassyn.frontend import *
 from inst import idToType
+from src.utils import popAllPorts
 from utils import ValArray
 
 class ROB(Module):
@@ -12,7 +13,7 @@ class ROB(Module):
             'rs2':Port(Bits(32)),
             'imm':Port(Bits(32)),
             'newId':Port(Bits(32)),
-            'expectV':Port(Bits(1)),
+            'expectV':Port(Bits(32)),
             'otherPC':Port(Bits(32)),
             'resFromALU':Port(Bits(32)),
             'idFromALU':Port(Bits(32))
@@ -22,7 +23,7 @@ class ROB(Module):
         self.inst = ValArray(Bits(32), robSize, self)
         self.dest = ValArray(Bits(32), robSize, self)
         self.value = ValArray(Bits(32), robSize, self)
-        self.expect = ValArray(Bits(1), robSize, self)
+        self.expect = ValArray(Bits(32), robSize, self)
         self.anotherPC = ValArray(Bits(32), robSize, self)
         self.ID = ValArray(Bits(32), robSize, self)
         self.l = RegArray(Bits(32), 1, [0])
@@ -44,13 +45,13 @@ class ROB(Module):
         (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.robSize)
         self.clear(self.l[0])
 
-    def clear(self, pos:Value):
+    def clear(self, pos):
         self.busy[pos] = Bits(1)(0)
         self.inst[pos] = Bits(32)(0)
         self.dest[pos] = Bits(32)(0)
         self.value[pos] = Bits(32)(0)
         self.ID[pos] = Bits(32)(0)
-        self.expect[pos] = Bits(1)(0)
+        self.expect[pos] = Bits(32)(0)
         self.anotherPC[pos] = Bits(32)(0)
 
     def log(self):
@@ -61,12 +62,13 @@ class ROB(Module):
         log('-'*50)
 
     @module.combinational
-    def build(self, rf, rs):
-
+    def build(self, rf, ic, rs):
         flush = RegArray(Bits(1), 1)
-        newPC = RegArray(Bits(32), 1)
 
         with (Condition(~flush[0])):
+            # to check whether issue and commit into the same dest
+            issueDest = self.type.valid().select(self.rd.peek(), Bits(32)(0))
+
             # issue in rob
             with Condition(self.type.valid()):
                 instType = self.type.pop()
@@ -79,9 +81,11 @@ class ROB(Module):
                 expect = self.expectV.pop()
                 anotherPC = self.otherPC.pop()
 
-                with Condition(rd != Bits(32)(0)):
+                with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2))):
                     rf.build(rd, rf.regs[rd], newId)
                     self.push(Bits(1)(1), instId, rd, Bits(32)(0), newId, expect, anotherPC)
+                with Condition(instType == Bits(32)(5)):
+                    self.push(Bits(1)(1), instId, Bits(32)(0), Bits(32)(0), newId, expect, anotherPC)
 
             # receive value from ALU
             with Condition(self.resFromALU.valid()):
@@ -93,10 +97,10 @@ class ROB(Module):
                         self.busy[i] = Bits(1)(0)
 
             # commit
+            instType = idToType(self.inst[self.l[0]])
             topPrepared = (self.l[0] != self.r[0]) & (~self.busy[self.l[0]])
             predictionFailed = ((instType == Bits(32)(5)) | (instType == Bits(32)(7))) & \
-                (self.value[self.l[0]]!=self.expect[self.l[0]])
-            (flush & self)[0] <= topPrepared & predictionFailed
+                (self.value[self.l[0]] != self.expect[self.l[0]])
 
             with Condition(topPrepared):
                 commitId = self.ID[self.l[0]]
@@ -106,23 +110,28 @@ class ROB(Module):
                 rs.robRes.push(self.value[self.l[0]])
                 self.pop()
                 # modify in rf
-                instType = idToType(self.inst[i])
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2))):
                     dest = self.dest[self.l[0]]
-                    rf.build(dest, self.value[self.l[0]],
-                             (rf.dependence[dest] == commitId).select(Bits(32)(0), rf.dependence[dest]))
+                    with Condition((rf.dependence[dest] == commitId) & (dest != issueDest)):
+                        rf.build(dest, self.value[self.l[0]], Bits(32)(0))
 
                 with Condition(predictionFailed):
-                    (newPC & self)[0] <= self.anotherPC[self.l[0]]
+                    (flush & self)[0] <= Bits(1)(1)
+                    rs.flushTag.push(Bits(1)(1))
+                    ic.flushTag.push(Bits(1)(1))
+                    ic.newPC.push(self.anotherPC[self.l[0]])
+                    ic.newId.push(self.ID[self.l[0]])
 
         # flush
         with Condition(flush[0]):
+            log("prediction failed, flush")
+            popAllPorts(self)
             for i in range(self.robSize):
-                self.clear(Bits(32)(i))
+                self.clear(i)
+            (self.l & self)[0] <= Bits(32)(0)
+            (self.r & self)[0] <= Bits(32)(0)
             rf.clearDependency()
             (flush & self)[0] <= Bits(1)(0)
 
         # rf.log()
         # self.log()
-
-        return flush, newPC
