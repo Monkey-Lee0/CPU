@@ -107,7 +107,7 @@ JInst = {
     Bits(32)(0b1101111):Bits(32)(34),
 }
 
-InstName = {
+InstName = [
     'illegal',
     'add',
     'sub',
@@ -146,7 +146,7 @@ InstName = {
     'jalr',
     'auipc',
     'lui'
-}
+]
 
 RegName = [
     'zero',
