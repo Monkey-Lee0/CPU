@@ -29,3 +29,6 @@ def popAllPorts(unit:Module):
     for port in unit.ports:
         with Condition(port.valid()):
             port.pop()
+
+def peekWithDefault(port:Port, default:Value):
+    return port.peek().optional(default, port.valid())

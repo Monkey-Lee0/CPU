@@ -1,21 +1,23 @@
 from decoder import *
-from utils import ValArray
+from utils import ValArray, peekWithDefault
 from predictor import predictor
+from assassyn.frontend import *
+from assassyn.ir.expr.intrinsic import get_mem_resp
 
 class ICache(Module):
     def __init__(self, cacheSize: int, init_file):
-        self.cacheSize = cacheSize
-        self.cachePool = ValArray(Bits(32), cacheSize, self)
-        self.instPC = ValArray(Bits(32), cacheSize, self)
-        self.sram = SRAM(32, 16384, init_file)
-        self.l = RegArray(Bits(32), 1)
-        self.r = RegArray(Bits(32), 1)
         super().__init__(ports={
             'start':Port(Bits(1)),
             'flushTag':Port(Bits(1)),
             'newPC':Port(Bits(32)),
             'newId':Port(Bits(32))
         })
+        self.cacheSize = cacheSize
+        self.cachePool = ValArray(Bits(32), cacheSize, self)
+        self.instPC = ValArray(Bits(32), cacheSize, self)
+        self.sram = SRAM(32, 16384, init_file)
+        self.l = RegArray(Bits(32), 1)
+        self.r = RegArray(Bits(32), 1)
 
     def push(self, value, pc):
         (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
@@ -122,3 +124,99 @@ class ICache(Module):
 
         rs.async_called()
         rob.async_called()
+
+
+class DCache(Module):
+    def __init__(self, cacheSize, init_file):
+        super().__init__(ports={
+            'newAddr':Port(Bits(32)),
+            'newType':Port(Bits(1)), # read-0 ; write-1
+            'wdata':Port(Bits(32))
+        })
+        self.cacheSize = cacheSize
+        self.dram = DRAM(32, 1<<16, init_file)
+        self.itemAddr = ValArray(Bits(32), cacheSize, self)
+        self.itemValue = ValArray(Bits(32), cacheSize, self)
+        self.itemStatus = ValArray(Bits(32), cacheSize, self) # 0-request not sent; 1-value prepared; 2-request sent
+        self.l = RegArray(Bits(32), 1)
+        self.r = RegArray(Bits(32), 1)
+
+    def full(self):
+        return (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) == self.r[0]
+
+    def empty(self):
+        return self.l[0] == self.r[0]
+
+    def push(self, newAddr, newValue, prepared):
+        (self.r & self)[0] <= self.r[0] + Bits(32)(1)
+        self.itemAddr[self.r[0]] = newAddr
+        self.itemValue[self.r[0]] = newValue
+        self.itemStatus[self.r[0]] = prepared
+
+    def pop(self):
+        (self.l & self)[0] <= self.l[0] + Bits(32)(1)
+        self.itemAddr[self.r[0]] = Bits(32)(0)
+        self.itemValue[self.r[0]] = Bits(32)(0)
+        self.itemStatus[self.r[0]] = Bits(32)(0)
+
+    def getItem(self, myAddr):
+        hasItem = Bits(1)(0)
+        itemStatus = Bits(32)(0)
+        value = Bits(32)(0)
+        for i in range(self.cacheSize):
+            hit = myAddr == self.itemAddr[i]
+            hasItem = hasItem | hit
+            itemStatus = itemStatus | hit.select(self.itemStatus[i], Bits(32)(0))
+            value = hit.select(self.itemValue[i], value)
+        return hasItem, itemStatus, value
+
+    @module.combinational
+    def build(self):
+        # write when full, top priority
+        we = self.full()
+        addr_we = self.itemAddr[self.l[0]]
+        wdata = self.itemValue[self.l[0]]
+
+        # request old read, second top priority
+        re_old = Bits(1)(0)
+        addr_re_old = Bits(32)(0)
+        inside = Bits(1)(1)
+        cur_index = self.l[0]
+        for i in range(self.cacheSize):
+            inside = inside & (cur_index != self.r[0])
+            addr_re_old = ((~re_old) & (self.itemStatus[cur_index] == Bits(32)(0)) & inside).select(
+                self.itemStatus[cur_index], addr_re_old)
+            re_old = re_old & (self.itemStatus[cur_index] == Bits(32)(0)) & inside
+            cur_index = (cur_index + Bits(32)(1)) % Bits(32)(self.cacheSize)
+        re_old = re_old & (~we)
+
+        # request new read, last top priority
+        newAddr = peekWithDefault(self.newAddr, Bits(32)(0))
+        newType = peekWithDefault(self.newType, Bits(1)(0))
+        wdata = peekWithDefault(self.wdata, Bits(32)(0))
+        hasItem = (~self.newAddr.valid()) | self.getItem(newAddr)[0]
+        re_new = (~we) & (~re_old) & (~hasItem) & (~newType)
+        addr_re_new = newAddr
+        with Condition(self.newAddr.valid()):
+            self.newAddr.pop()
+            self.newType.pop()
+            self.wdata.pop()
+            self.getItem(newAddr)[0]
+            with Condition(~hasItem):
+                with Condition(newType):
+                    self.push(newAddr, wdata, Bits(32)(1))
+                with Condition(~newType):
+                    self.push(newAddr, Bits(32)(0), re_new.select(Bits(32)(2), Bits(32)(0)))
+
+        addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
+        re = re_old & re_new
+        self.dram.build(we, re, addr_dram, wdata)
+
+        with Condition(has_mem_resp(self.dram)):
+            result = get_mem_resp(self.dram)
+            addr = result[32:63]
+            value = result[0:31]
+            for i in range(self.cacheSize):
+                with Condition(self.itemAddr[i] == addr):
+                    self.itemStatus[i] = Bits(32)(1)
+                    self.itemValue[i] = value
