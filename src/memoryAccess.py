@@ -1,5 +1,5 @@
 from decoder import *
-from utils import ValArray, peekWithDefault
+from utils import ValArray, peekWithDefault, checkInside
 from predictor import predictor
 from assassyn.frontend import *
 from assassyn.ir.expr.intrinsic import get_mem_resp
@@ -134,7 +134,7 @@ class DCache(Module):
             'wdata':Port(Bits(32))
         })
         self.cacheSize = cacheSize
-        self.dram = DRAM(32, 1<<16, init_file)
+        self.sram = SRAM(32, 16384, init_file)
         self.itemAddr = ValArray(Bits(32), cacheSize, self)
         self.itemValue = ValArray(Bits(32), cacheSize, self)
         self.itemStatus = ValArray(Bits(32), cacheSize, self) # 0-request not sent; 1-value prepared; 2-request sent
@@ -142,29 +142,29 @@ class DCache(Module):
         self.r = RegArray(Bits(32), 1)
 
     def full(self):
-        return (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) == self.r[0]
+        return (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) == self.l[0]
 
     def empty(self):
         return self.l[0] == self.r[0]
 
     def push(self, newAddr, newValue, prepared):
-        (self.r & self)[0] <= self.r[0] + Bits(32)(1)
+        (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
         self.itemAddr[self.r[0]] = newAddr
         self.itemValue[self.r[0]] = newValue
         self.itemStatus[self.r[0]] = prepared
 
     def pop(self):
-        (self.l & self)[0] <= self.l[0] + Bits(32)(1)
-        self.itemAddr[self.r[0]] = Bits(32)(0)
-        self.itemValue[self.r[0]] = Bits(32)(0)
-        self.itemStatus[self.r[0]] = Bits(32)(0)
+        (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
+        self.itemAddr[self.l[0]] = Bits(32)(0)
+        self.itemValue[self.l[0]] = Bits(32)(0)
+        self.itemStatus[self.l[0]] = Bits(32)(0)
 
     def getItem(self, myAddr):
         hasItem = Bits(1)(0)
         itemStatus = Bits(32)(0)
         value = Bits(32)(0)
         for i in range(self.cacheSize):
-            hit = myAddr == self.itemAddr[i]
+            hit = (myAddr == self.itemAddr[i]) & checkInside(self.l[0], self.r[0], Bits(32)(i))
             hasItem = hasItem | hit
             itemStatus = itemStatus | hit.select(self.itemStatus[i], Bits(32)(0))
             value = hit.select(self.itemValue[i], value)
@@ -176,24 +176,25 @@ class DCache(Module):
         we = self.full()
         addr_we = self.itemAddr[self.l[0]]
         wdata = self.itemValue[self.l[0]]
+        lastAddr = RegArray(Bits(32), 1)
+
+        with Condition(self.full()):
+            self.pop()
 
         # request old read, second top priority
         re_old = Bits(1)(0)
         addr_re_old = Bits(32)(0)
-        inside = Bits(1)(1)
-        cur_index = self.l[0]
         for i in range(self.cacheSize):
-            inside = inside & (cur_index != self.r[0])
-            addr_re_old = ((~re_old) & (self.itemStatus[cur_index] == Bits(32)(0)) & inside).select(
-                self.itemStatus[cur_index], addr_re_old)
-            re_old = re_old & (self.itemStatus[cur_index] == Bits(32)(0)) & inside
-            cur_index = (cur_index + Bits(32)(1)) % Bits(32)(self.cacheSize)
+            inside = checkInside(self.l[0], self.r[0], Bits(32)(i))
+            addr_re_old = ((~re_old) & (self.itemStatus[i] == Bits(32)(0)) & inside).select(
+                self.itemAddr[i], addr_re_old)
+            re_old = re_old | ((self.itemStatus[i] == Bits(32)(0)) & inside)
         re_old = re_old & (~we)
 
         # request new read, last top priority
         newAddr = peekWithDefault(self.newAddr, Bits(32)(0))
         newType = peekWithDefault(self.newType, Bits(1)(0))
-        wdata = peekWithDefault(self.wdata, Bits(32)(0))
+        newData = peekWithDefault(self.wdata, Bits(32)(0))
         hasItem = (~self.newAddr.valid()) | self.getItem(newAddr)[0]
         re_new = (~we) & (~re_old) & (~hasItem) & (~newType)
         addr_re_new = newAddr
@@ -202,21 +203,30 @@ class DCache(Module):
             self.newType.pop()
             self.wdata.pop()
             self.getItem(newAddr)[0]
+            log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
                 with Condition(newType):
-                    self.push(newAddr, wdata, Bits(32)(1))
+                    self.push(newAddr, newData, Bits(32)(1))
                 with Condition(~newType):
-                    self.push(newAddr, Bits(32)(0), re_new.select(Bits(32)(2), Bits(32)(0)))
+                    self.push(newAddr, Bits(32)(0), Bits(32)(0))
 
         addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
-        re = re_old & re_new
-        self.dram.build(we, re, addr_dram, wdata)
+        re = re_old | re_new
+        log("{} {} {} {} {}", we, re, addr_dram, wdata, lastAddr[0])
+        self.log()
+        self.sram.build(we, re, addr_dram, wdata)
+        (lastAddr & self)[0] <= addr_dram
 
-        with Condition(has_mem_resp(self.dram)):
-            result = get_mem_resp(self.dram)
-            addr = result[32:63]
-            value = result[0:31]
-            for i in range(self.cacheSize):
-                with Condition(self.itemAddr[i] == addr):
-                    self.itemStatus[i] = Bits(32)(1)
-                    self.itemValue[i] = value
+        for i in range(self.cacheSize):
+            with Condition((self.itemAddr[i] == lastAddr[0]) & (self.itemStatus[i] == Bits(32)(0)) &
+                           checkInside(self.l[0], self.r[0], Bits(32)(i))):
+                self.itemStatus[i] = Bits(32)(1)
+                self.itemValue[i] = self.sram.dout[0]
+
+
+    def log(self):
+        log('-'*50)
+        log('range: {} {}', self.l[0], self.r[0])
+        for i in range(self.cacheSize):
+            log('{} {} {}', self.itemAddr[i], self.itemValue[i], self.itemStatus[i])
+        log('-'*50)

@@ -32,3 +32,6 @@ def popAllPorts(unit:Module):
 
 def peekWithDefault(port:Port, default:Value):
     return port.peek().optional(default, port.valid())
+
+def checkInside(l:Value, r:Value, i:Value):
+    return ((i >= l) & (i < r)) | ((l > r) & ((i >= l) | (i < r)))
