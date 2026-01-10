@@ -1,9 +1,10 @@
 from assassyn.frontend import *
-from memoryAccess import ICache
+from memoryAccess import ICache, DCache
 from rs import RS
 from regFile import RegFile
 from rob import ROB
-from alu import ALU
+from alu import ALU, AGU
+from lsb import LSB
 
 class Driver(Module):
     def __init__(self):
@@ -24,16 +25,21 @@ def buildSys():
     with sys:
         driver = Driver()
         iCache = ICache(8, 'workload/parallel.data')
+        dCache = DCache(32, None)
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)
         alu = ALU()
+        agu = AGU()
+        lsb = LSB(8)
 
         driver.build(iCache)
-
-        rob.build(rf, iCache, rs)
+        iCache.build(rs, rob, lsb)
+        dCache.build()
+        rs.build(rf, lsb, alu, agu)
+        rob.build(rf, iCache, rs, lsb)
         alu.build(rob)
-        rs.build(rf, alu)
-        iCache.build(rs, rob)
+        agu.build(lsb)
+        lsb.build(dCache, rob)
 
     return sys

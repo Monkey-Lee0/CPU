@@ -28,7 +28,7 @@ class RS(Module):
         self.A = ValArray(Bits(32), rsSize, self)
 
     @module.combinational
-    def build(self, rf, alu):
+    def build(self, rf, lsb, alu, agu):
         # flush
         flush = self.flushTag.valid()
         with Condition(flush):
@@ -106,9 +106,20 @@ class RS(Module):
                         alu.lhs.push(self.vj[i])
                         alu.rhs.push(self.vk[i])
                         alu.robId.push(self.dest[i])
-
                     self.clear(i)
                 tag = tag & (~canExecute)
+
+            # forward into agu & lsb
+            tag = Bits(1)(1)
+            for i in range(self.rsSize):
+                canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0))
+                with Condition(tag & canExecute):
+                    agu.lhs.push(self.vj[i])
+                    agu.rhs.push(self.A[i])
+                    agu.robId.push(self.dest[i])
+                    lsb.newId_rs.push(self.dest[i])
+                    lsb.wdata.push(self.vk[i])
+                    self.clear(i)
 
             # update from rob
             with Condition(self.robId.valid()):
@@ -123,6 +134,7 @@ class RS(Module):
                         self.vk[i] <= robRes
 
         alu.async_called()
+        agu.async_called()
         # self.log()
 
     def log(self):

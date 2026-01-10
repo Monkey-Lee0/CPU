@@ -15,8 +15,12 @@ class ROB(Module):
             'newId':Port(Bits(32)),
             'expectV':Port(Bits(32)),
             'otherPC':Port(Bits(32)),
+
             'resFromALU':Port(Bits(32)),
-            'idFromALU':Port(Bits(32))
+            'idFromALU':Port(Bits(32)),
+
+            'resFromLSB':Port(Bits(32)),
+            'idFromLSB':Port(Bits(32))
         })
         self.robSize = robSize
         self.busy = ValArray(Bits(1), robSize, self)
@@ -62,7 +66,7 @@ class ROB(Module):
         log('-'*50)
 
     @module.combinational
-    def build(self, rf, ic, rs):
+    def build(self, rf, ic, rs, lsb):
         flush = RegArray(Bits(1), 1)
 
         with (Condition(~flush[0])):
@@ -84,6 +88,8 @@ class ROB(Module):
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                     rf.build(rd, rf.regs[rd], newId)
                     self.push(Bits(1)(1), instId, rd, Bits(32)(0), newId, expect, anotherPC)
+                with Condition(instType == Bits(32)(4)):
+                    self.push(Bits(1)(0), instId, Bits(32)(0), Bits(32)(0), newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(5)):
                     self.push(Bits(1)(1), instId, Bits(32)(0), Bits(32)(0), newId, expect, anotherPC)
 
@@ -91,6 +97,15 @@ class ROB(Module):
             with Condition(self.resFromALU.valid()):
                 res = self.resFromALU.pop()
                 robId = self.idFromALU.pop()
+                for i in range(self.robSize):
+                    with Condition(self.ID[i] == robId):
+                        self.value[i] = res
+                        self.busy[i] = Bits(1)(0)
+
+            # receive value from lsb
+            with Condition(self.resFromLSB.valid()):
+                res = self.resFromLSB.pop()
+                robId = self.idFromLSB.pop()
                 for i in range(self.robSize):
                     with Condition(self.ID[i] == robId):
                         self.value[i] = res
@@ -114,6 +129,11 @@ class ROB(Module):
                     dest = self.dest[self.l[0]]
                     with Condition((rf.dependence[dest] == commitId) & (dest != issueDest)):
                         rf.build(dest, self.value[self.l[0]], Bits(32)(0))
+
+                # enable in lsb
+                with Condition(instType == Bits(32)(4)):
+                    lsb.newId_rob.push(commitId)
+                    lsb.robFlag.push(Bits(1)(1))
 
                 with Condition(predictionFailed):
                     (flush & self)[0] <= Bits(1)(1)

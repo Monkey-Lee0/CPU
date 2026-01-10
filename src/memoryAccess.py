@@ -33,7 +33,7 @@ class ICache(Module):
         self.clear(self.l[0])
 
     @module.combinational
-    def build(self, rs, rob):
+    def build(self, rs, rob, lsb):
         pc_cache = RegArray(Bits(32), 1)
         robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
@@ -64,6 +64,8 @@ class ICache(Module):
                 valid = Bits(1)(0)
                 for i in range(rs.rsSize):
                     valid = valid | (~rs.busy[i])
+                for i in range(lsb.lsbSize):
+                    valid = valid | (~lsb.status[i])
                 valid = valid & (rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)) & (self.l[0] != self.r[0])
 
                 # read from sram
@@ -111,6 +113,11 @@ class ICache(Module):
                     rob.rs2.push(res.rs2)
                     rob.imm.push(res.imm)
                     rob.newId.push(robId[0])
+
+                    # issue into lsb
+                    with Condition((res.id >= Bits(32)(20)) & (Bits(32)(27) >= res.id)):
+                        lsb.newId_ic.push(robId[0])
+                        lsb.inst_id.push(res.id)
 
                     # branch prediction(currently, pc=pc+4)
                     with Condition(res.type == Bits(32)(5)):

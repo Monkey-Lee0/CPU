@@ -60,5 +60,19 @@ class ALU(Module):
             log("{} {} {} = {}", lhs, instId, rhs, res)
 
 
-
-
+class AGU(Module):
+    def __init__(self):
+        super().__init__(ports={
+            'lhs':Port(Bits(32)),
+            'rhs':Port(Bits(32)),
+            'robId':Port(Bits(32))
+        })
+    @module.combinational
+    def build(self, lsb):
+        with Condition(self.robId.valid()):
+            lhs = self.lhs.pop()
+            rhs = self.rhs.pop()
+            robId = self.robId.pop()
+            lsb.newId_agu.push(robId)
+            lsb.newAddr.push(lhs + rhs)
+        lsb.async_called()
