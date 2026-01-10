@@ -112,13 +112,17 @@ class ROB(Module):
                         self.busy[i] = Bits(1)(0)
 
             # commit
+            commitId = self.ID[self.l[0]]
             instType = idToType(self.inst[self.l[0]])
             topPrepared = (self.l[0] != self.r[0]) & (~self.busy[self.l[0]])
+            lsbPrepared = instType != Bits(32)(4)
+            for i in range(lsb.lsbSize):
+                lsbPrepared = lsbPrepared | ((lsb.status[i] == Bits(32)(3)) & (lsb.robId[i] == commitId))
+            topPrepared = topPrepared & lsbPrepared
             predictionFailed = ((instType == Bits(32)(5)) | (instType == Bits(32)(7))) & \
                 (self.value[self.l[0]] != self.expect[self.l[0]])
 
             with Condition(topPrepared):
-                commitId = self.ID[self.l[0]]
                 log("commit {} {}", commitId, self.value[self.l[0]])
                 # deliver to rs
                 rs.robId.push(commitId)

@@ -52,7 +52,7 @@ class LSB(Module):
                 instId = self.inst_id.pop()
                 flag = Bits(1)(1)
                 for i in range(self.lsbSize):
-                    validItem = ~self.status[i]
+                    validItem = self.status[i] == Bits(32)(0)
                     with Condition(flag & validItem):
                         self.robId[i] = newId
                         self.instId[i] = instId
@@ -75,12 +75,12 @@ class LSB(Module):
                 for i in range(self.lsbSize):
                     with Condition(self.robId[i] == newId):
                         self.status[i] = Bits(32)(3)
-                        self.addr[i] = addr
+                        self.addr[i] = addr >> Bits(32)(2)
 
             # enabling flag from rob
             with Condition(self.newId_rob.valid()):
                 newId = self.newId_rob.pop()
-                robFlag = self.robFlag.pop()
+                self.robFlag.pop()
                 for i in range(self.lsbSize):
                     with Condition(self.robId[i] == newId):
                         self.status[i] = Bits(32)(4)
@@ -99,7 +99,7 @@ class LSB(Module):
                 with Condition(isRead(self.instId[i])):
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToRob)):
                         hasItem, itemStatus, value = dCache.getItem(self.addr[i])
-                        with Condition(itemStatus):
+                        with Condition(itemStatus == Bits(32)(1)):
                             rob.resFromLSB.push(value)
                             rob.idFromLSB.push(self.robId[i])
                             self.clear(i)
@@ -107,14 +107,16 @@ class LSB(Module):
                                    (~self.checkDependency(self.addr[i], self.robId[i]))):
                         dCache.newAddr.push(self.addr[i])
                         dCache.newType.push(Bits(1)(0))
-                        dCache.wdata.push(0)
+                        dCache.wdata.push(Bits(32)(0))
                         self.status[i] = Bits(32)(4)
 
                 sentToCache = sentToCache | (isWrite(self.instId[i]) & (self.status[i] == Bits(32)(4))) | (
                     isRead(self.instId[i]) & (self.status[i] == Bits(32)(3)) & (
                     ~self.checkDependency(self.addr[i], self.robId[i])))
-                sentTORob = sentToRob | (isRead(self.instId[i]) & (self.status[i] == Bits(32)(4)) &
-                                         dCache.getItem(self.addr[i])[1])
+                sentToRob = sentToRob | (isRead(self.instId[i]) & (self.status[i] == Bits(32)(4)) &
+                                         (dCache.getItem(self.addr[i])[1] == Bits(32)(1)))
+
+        dCache.async_called()
 
     def clear(self, index:int):
         self.robId[index] = Bits(32)(0)
@@ -126,7 +128,7 @@ class LSB(Module):
     def checkDependency(self, addr, robId):
         hasDependency = Bits(1)(0)
         for i in range(self.lsbSize):
-            hasDependency = hasDependency | (self.status[i] & (self.robId[i] < robId) & (
+            hasDependency = hasDependency | ((self.status[i] != Bits(32)(0)) & (self.robId[i] < robId) & (
                     self.addr[i] == addr) & isWrite(self.instId[i]))
         return hasDependency
 

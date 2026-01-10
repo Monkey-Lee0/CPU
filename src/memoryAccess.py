@@ -65,7 +65,7 @@ class ICache(Module):
                 for i in range(rs.rsSize):
                     valid = valid | (~rs.busy[i])
                 for i in range(lsb.lsbSize):
-                    valid = valid | (~lsb.status[i])
+                    valid = valid | (lsb.status[i] == Bits(32)(0))
                 valid = valid & (rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)) & (self.l[0] != self.r[0])
 
                 # read from sram
@@ -97,7 +97,7 @@ class ICache(Module):
                     res = parseInst(inst)
                     log("issue {}", robId[0])
                     res.print()
-                    rs.type.push(res.type)
+                    rs.inst_type.push(res.type)
                     rs.id.push(res.id)
                     rs.rd.push(res.rd)
                     rs.rs1.push(res.rs1)
@@ -210,7 +210,7 @@ class DCache(Module):
             self.newType.pop()
             self.wdata.pop()
             self.getItem(newAddr)[0]
-            log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
+            # log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
                 with Condition(newType):
                     self.push(newAddr, newData, Bits(32)(1))
@@ -219,8 +219,8 @@ class DCache(Module):
 
         addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
         re = re_old | re_new
-        log("{} {} {} {} {}", we, re, addr_dram, wdata, lastAddr[0])
-        self.log()
+        # log("{} {} {} {} {}", we, re, addr_dram, wdata, lastAddr[0])
+        # self.log()
         self.sram.build(we, re, addr_dram, wdata)
         (lastAddr & self)[0] <= addr_dram
 

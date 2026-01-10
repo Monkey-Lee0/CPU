@@ -5,7 +5,7 @@ from inst import idToType
 class RS(Module):
     def __init__(self, rsSize):
         super().__init__(ports={
-            'type':Port(Bits(32)),
+            'inst_type':Port(Bits(32)),
             'id':Port(Bits(32)),
             'rd':Port(Bits(32)),
             'rs1':Port(Bits(32)),
@@ -38,8 +38,8 @@ class RS(Module):
 
         with Condition(~flush):
             # issue into rs
-            with Condition(self.type.valid()):
-                instType = self.type.pop()
+            with Condition(self.inst_type.valid()):
+                instType = self.inst_type.pop()
                 instId = self.id.pop()
                 rd = self.rd.pop()
                 rs1 = self.rs1.pop()
@@ -70,6 +70,16 @@ class RS(Module):
                             self.qk[i] = Bits(32)(0)
                             self.dest[i] = newId
                             self.A[i] = imm
+                        # type S
+                        with Condition((instType == Bits(32)(4))):
+                            self.busy[i] = Bits(1)(1)
+                            self.inst[i] = instId
+                            self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
+                            self.vk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
+                            self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
+                            self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
+                            self.dest[i] = newId
+                            self.A[i] = imm
                         # type B
                         with Condition(instType == Bits(32)(5)):
                             self.busy[i] = Bits(1)(1)
@@ -85,9 +95,11 @@ class RS(Module):
             # forward into alu
             tag = Bits(1)(1)
             for i in range(self.rsSize):
-                canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0))
+                instType = idToType(self.inst[i])
+                canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0)) & (
+                        (instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3)) | (instType == Bits(32)(5))) & (
+                        (Bits(32)(19) >= self.inst[i]) | (self.inst[i] >= Bits(32)(28)))
                 with Condition(tag & canExecute):
-                    instType = idToType(self.inst[i])
                     # type R
                     with Condition(instType == Bits(32)(1)):
                         alu.instId.push(self.inst[i])
@@ -112,7 +124,8 @@ class RS(Module):
             # forward into agu & lsb
             tag = Bits(1)(1)
             for i in range(self.rsSize):
-                canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0))
+                canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0)) & (
+                        self.inst[i] >= Bits(32)(20)) & (Bits(32)(27) >= self.inst[i])
                 with Condition(tag & canExecute):
                     agu.lhs.push(self.vj[i])
                     agu.rhs.push(self.A[i])
@@ -120,6 +133,7 @@ class RS(Module):
                     lsb.newId_rs.push(self.dest[i])
                     lsb.wdata.push(self.vk[i])
                     self.clear(i)
+                tag = tag & (~canExecute)
 
             # update from rob
             with Condition(self.robId.valid()):
@@ -127,11 +141,11 @@ class RS(Module):
                 robRes = self.robRes.pop()
                 for i in range(self.rsSize):
                     with Condition(self.qj[i] == robId):
-                        self.qj[i] <= Bits(32)(0)
-                        self.vj[i] <= robRes
+                        self.qj[i] = Bits(32)(0)
+                        self.vj[i] = robRes
                     with Condition(self.qk[i] == robId):
-                        self.qk[i] <= Bits(32)(0)
-                        self.vk[i] <= robRes
+                        self.qk[i] = Bits(32)(0)
+                        self.vk[i] = robRes
 
         alu.async_called()
         agu.async_called()

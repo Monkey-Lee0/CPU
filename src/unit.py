@@ -24,8 +24,8 @@ def buildSys():
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        iCache = ICache(8, 'workload/parallel.data')
-        dCache = DCache(32, None)
+        iCache = ICache(8, 'workload/memory.data')
+        dCache = DCache(32, 'workload/dcache.in')
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)

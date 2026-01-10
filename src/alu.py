@@ -57,7 +57,7 @@ class ALU(Module):
             rob.resFromALU.push(res)
             rob.idFromALU.push(robId)
 
-            log("{} {} {} = {}", lhs, instId, rhs, res)
+            log("{}: {} {} {} = {}", robId, lhs, instId, rhs, res)
 
 
 class AGU(Module):
@@ -75,4 +75,5 @@ class AGU(Module):
             robId = self.robId.pop()
             lsb.newId_agu.push(robId)
             lsb.newAddr.push(lhs + rhs)
+            log("{}: {} + {} = {}", robId, lhs, rhs, lhs + rhs)
         lsb.async_called()

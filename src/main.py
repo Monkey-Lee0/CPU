@@ -1,4 +1,3 @@
-from assassyn.backend import elaborate, config
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -6,8 +5,9 @@ from pathlib import Path
 from assassyn import utils
 from assassyn.backend import elaborate, config
 
-from unit import buildSys
 from inst import RegName, InstName
+from unit import buildSys
+
 
 @contextmanager
 def _suppress_output():
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     config = config(
         verilog=utils.has_verilator(),
-        sim_threshold=500,
+        sim_threshold=40,
         idle_threshold=200,
         resource_base=Path(__file__).resolve().parent.parent,
         random=True

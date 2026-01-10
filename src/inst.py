@@ -229,3 +229,6 @@ def idToType(instId):
     for Id, Type in idToTypeDict.items():
         res = (Id == instId).select(Type, res)
     return res
+
+def isMemoryInst(instId):
+    return (instId >= Bits(32)(20)) & (Bits(32)(27) >= instId)
