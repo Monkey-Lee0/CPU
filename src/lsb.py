@@ -43,7 +43,11 @@ class LSB(Module):
 
         # branch prediction failed, flush!
         with Condition(flush):
-            pass
+            self.flushTag.pop()
+            id = self.flushId.pop()
+            for i in Condition(self.lsbSize):
+                with Condition(self.robId[i] >= id):
+                    self.clear(i)
 
         with Condition(~flush):
             # new item from decoder(decoder needs to check full or not)

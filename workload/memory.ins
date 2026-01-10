@@ -1,6 +1,14 @@
-li a0 7
-li sp 4
-sw a0 1020(zero)
-lw a1 1020(zero)
-lw a2 0(sp)
-add a2 a1 a2
+li a0 0
+li sp 10
+li a1 0
+addi a0 a0 1
+addi a1 a1 4
+sw a0 0(a1)
+blt a0 sp -12
+li a0 0
+li a1 0
+addi a0 a0 1
+addi a1 a1 4
+lw a2 0(a1)
+add t1 a2
+blt a0 sp -16
