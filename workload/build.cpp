@@ -265,13 +265,18 @@ unsigned int coder(const instruction a)
     return 0;
 }
 
+bool isValidChar(char op)
+{
+    return (op>='a'&&op<='z')||(op>='0'&&op<='9')||(op=='-');
+}
+
 inline string tokenTaker(string& a)
 {
     int l=0;
-    while(l!=a.size()&&(a[l]==' '||a[l]=='('||a[l]==')'||a[l]==','||a[l]=='\t'||a[l]=='\n'))
+    while(l!=a.size()&&(!isValidChar(a[l])))
         l++;
     int r=l;
-    while(r!=a.size()&&a[r]!=' '&&a[r]!='('&&a[r]!=')'&&a[r]!=','&&a[r]!='\t'&&a[r]!='\n')
+    while(r!=a.size()&&isValidChar(a[r]))
         r++;
     auto res=a.substr(l,r-l);
     a=a.substr(r);

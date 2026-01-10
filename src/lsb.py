@@ -45,7 +45,7 @@ class LSB(Module):
         with Condition(flush):
             self.flushTag.pop()
             id = self.flushId.pop()
-            for i in Condition(self.lsbSize):
+            for i in range(self.lsbSize):
                 with Condition(self.robId[i] >= id):
                     self.clear(i)
 
