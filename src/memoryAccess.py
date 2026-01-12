@@ -83,7 +83,7 @@ class ICache(Module):
                         (pc_cache & self)[0] <= pc_cache[0] + Bits(32)(1)
                     with Condition(curInst.type == Bits(32)(5)):
                         curInst = parseInst(self.sram.dout[0])
-                        movement = bitsToInt(curInst.imm, 13, 32) >> Bits(32)(2)
+                        movement = bitsToInt32(curInst.imm, 13) >> Bits(32)(2)
                         (pc_cache & self)[0] <= predictor(pc_cache[0] + movement, pc_cache[0] + Bits(32)(1))[1]
 
                 # issue
@@ -121,7 +121,7 @@ class ICache(Module):
 
                     # branch prediction(currently, pc=pc+4)
                     with Condition(res.type == Bits(32)(5)):
-                        movement = (bitsToInt(res.imm, 13, 32) >> Bits(32)(2))
+                        movement = (bitsToInt32(res.imm, 13) >> Bits(32)(2))
                         branch, _, otherPC = predictor(pc + movement, pc + Bits(32)(1))
                         rob.expectV.push(branch.zext(Bits(32)))
                         rob.otherPC.push(otherPC)
@@ -175,6 +175,7 @@ class DCache(Module):
             hasItem = hasItem | hit
             itemStatus = itemStatus | hit.select(self.itemStatus[i], Bits(32)(0))
             value = hit.select(self.itemValue[i], value)
+
         return hasItem, itemStatus, value
 
     @module.combinational
@@ -209,7 +210,6 @@ class DCache(Module):
             self.newAddr.pop()
             self.newType.pop()
             self.wdata.pop()
-            self.getItem(newAddr)[0]
             # log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
                 with Condition(newType):

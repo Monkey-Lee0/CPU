@@ -1,4 +1,6 @@
 from assassyn.frontend import *
+
+from src.utils import bitsToInt32
 from utils import ValArray
 
 def isRead(instId):
@@ -6,6 +8,22 @@ def isRead(instId):
 
 def isWrite(instId):
     return (instId >= Bits(32)(25)) & (Bits(32)(27) >= instId)
+
+def resolve_lbu(offset, value):
+    l = offset << Bits(32)(3)
+    return (value >> l) & Bits(32)((1<<8)-1)
+
+def resolve_lb(offset, value):
+    l = offset << Bits(32)(3)
+    return (bitsToInt32((value >> l) & Bits(32)((1<<8)-1),8)).bitcast(Bits(32))
+
+def resolve_lhu(offset, value):
+    l = offset << Bits(32)(3)
+    return (value >> l) & Bits(32)((1<<16)-1)
+
+def resolve_lh(offset, value):
+    l = offset << Bits(32)(3)
+    return (bitsToInt32((value >> l) & Bits(32)((1<<16)-1),16)).bitcast(Bits(32))
 
 class LSB(Module):
     def __init__(self, lsbSize):
@@ -29,6 +47,7 @@ class LSB(Module):
         self.robId = ValArray(Bits(32), lsbSize, self)
         self.instId = ValArray(Bits(32), lsbSize, self)
         self.addr = ValArray(Bits(32), lsbSize, self)
+        self.offset = ValArray(Bits(32), lsbSize, self)
         self.value = ValArray(Bits(32), lsbSize, self)
         self.status = ValArray(Bits(32), lsbSize, self)
         # 0 -> empty
@@ -80,6 +99,7 @@ class LSB(Module):
                     with Condition(self.robId[i] == newId):
                         self.status[i] = Bits(32)(3)
                         self.addr[i] = addr >> Bits(32)(2)
+                        self.offset[i] = addr & Bits(32)(3) # reserve the information of position
 
             # enabling flag from rob
             with Condition(self.newId_rob.valid()):
@@ -93,7 +113,7 @@ class LSB(Module):
             sentToCache = Bits(1)(0)
             sentToRob = Bits(1)(0)
             for i in range(self.lsbSize):
-                with Condition(isWrite(self.instId[i])):
+                with Condition(isWrite(self.instId[i])): # sw, sh, sb, they all look difficult
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToCache)):
                         dCache.newAddr.push(self.addr[i])
                         dCache.newType.push(Bits(1)(1))
@@ -103,6 +123,10 @@ class LSB(Module):
                 with Condition(isRead(self.instId[i])):
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToRob)):
                         hasItem, itemStatus, value = dCache.getItem(self.addr[i])
+                        value = (self.instId[i] == Bits(32)(20)).select(resolve_lb(self.offset[i],value),value)
+                        value = (self.instId[i] == Bits(32)(21)).select(resolve_lbu(self.offset[i],value),value)
+                        value = (self.instId[i] == Bits(32)(22)).select(resolve_lh(self.offset[i],value),value)
+                        value = (self.instId[i] == Bits(32)(23)).select(resolve_lhu(self.offset[i],value),value)
                         with Condition(itemStatus == Bits(32)(1)):
                             rob.resFromLSB.push(value)
                             rob.idFromLSB.push(self.robId[i])
@@ -142,3 +166,4 @@ class LSB(Module):
             log('robId:{} addr:{} re:{} we:{} value:{} enabled:{}', self.robId[i], self.addr[i], self.re[i],
                 self.we[i], self.value[i], self.enabled[i])
         log('-'*50)
+

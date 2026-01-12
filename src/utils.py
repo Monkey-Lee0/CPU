@@ -35,3 +35,8 @@ def peekWithDefault(port:Port, default:Value):
 
 def checkInside(l:Value, r:Value, i:Value):
     return ((i >= l) & (i < r)) | ((l > r) & ((i >= l) | (i < r)))
+
+def bitsToInt32(b, bit): # b:Bits(bit); sign extend b to Int(32)
+    mxVal = Bits(32)(1) << Bits(32)(bit-1)
+    bInt = b.bitcast(Int(32))
+    return (b < mxVal).select(bInt, bInt - mxVal - mxVal)

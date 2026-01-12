@@ -1,9 +1,5 @@
 from assassyn.frontend import *
-
-def bitsToInt(b, bit1, bit2):
-    mxVal = Bits(32)(1) << Bits(32)(bit1-1)
-    bInt = b.bitcast(Int(bit2))
-    return (b < mxVal).select(bInt, bInt - mxVal - mxVal)
+from utils import bitsToInt32
 
 class Inst:
 
@@ -43,7 +39,7 @@ class Inst:
         with Condition(self.type == Bits(32)(4)):
             log('%{} ${} {}(${})', self.id, self.rs2, self.imm, self.rs1)
         with Condition(self.type == Bits(32)(5)):
-            log('%{} ${} ${} {}', self.id, self.rs1, self.rs2, bitsToInt(self.imm, 13, 32))
+            log('%{} ${} ${} {}', self.id, self.rs1, self.rs2, bitsToInt32(self.imm, 13))
         with Condition(self.type == Bits(32)(6)):
             log('%{} ${} {}', self.id, self.rd, self.imm)
         with Condition(self.type == Bits(32)(7)):
