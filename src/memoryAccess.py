@@ -133,10 +133,22 @@ class ICache(Module):
         rob.async_called()
 
 def resolve_sb(newData, offset, Val):
-    pass
+    Modification = newData & Bits(32)(0xFF)
+    bit_offset = offset << Bits(32)(3)
+    clear_mask = ~(Bits(32)(0xFF) << bit_offset)
+    val_cleared = Val & clear_mask
+    mod_shifted = Modification << bit_offset
+    result = val_cleared | mod_shifted
+    return result
 
 def resolve_sh(newData, offset, Val):
-    pass
+    Modification = newData & Bits(32)(0xFFFF)
+    bit_offset = offset << Bits(32)(4)
+    clear_mask = ~(Bits(32)(0xFFFF) << bit_offset)
+    val_cleared = Val & clear_mask
+    mod_shifted = Modification << bit_offset
+    result = val_cleared | mod_shifted
+    return result
 
 class DCache(Module):
     def __init__(self, cacheSize, init_file):
@@ -216,8 +228,9 @@ class DCache(Module):
         addr_re_new = newAddr
         with Condition(self.newAddr.valid()):
             self.newAddr.pop()
-            self.newType.pop()
             self.wdata.pop()
+            self.offset.pop()
+            self.instID.pop()
             # log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
                 with Condition(newType):

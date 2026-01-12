@@ -11,19 +11,19 @@ def isWrite(instId):
 
 def resolve_lbu(offset, value):
     l = offset << Bits(32)(3)
-    return (value >> l) & Bits(32)((1<<8)-1)
+    return (value >> l) & Bits(32)(0xFF)
 
 def resolve_lb(offset, value):
     l = offset << Bits(32)(3)
-    return (bitsToInt32((value >> l) & Bits(32)((1<<8)-1),8)).bitcast(Bits(32))
+    return (bitsToInt32((value >> l) & Bits(32)(0xFF),8)).bitcast(Bits(32))
 
 def resolve_lhu(offset, value):
     l = offset << Bits(32)(3)
-    return (value >> l) & Bits(32)((1<<16)-1)
+    return (value >> l) & Bits(32)(0xFFFF)
 
 def resolve_lh(offset, value):
     l = offset << Bits(32)(3)
-    return (bitsToInt32((value >> l) & Bits(32)((1<<16)-1),16)).bitcast(Bits(32))
+    return (bitsToInt32((value >> l) & Bits(32)(0xFFFF),16)).bitcast(Bits(32))
 
 class LSB(Module):
     def __init__(self, lsbSize):
@@ -118,7 +118,7 @@ class LSB(Module):
                         dCache.newAddr.push(self.addr[i])
                         dCache.wdata.push(self.value[i])
                         dCache.offset.push(self.offset[i])
-                        dCache.instType.push(self.instId[i])
+                        dCache.instID.push(self.instId[i])
                         self.clear(i)
 
                 with Condition(isRead(self.instId[i])):
@@ -136,6 +136,8 @@ class LSB(Module):
                                    (~self.checkDependency(self.addr[i], self.robId[i]))):
                         dCache.newAddr.push(self.addr[i])
                         dCache.wdata.push(Bits(32)(0))
+                        dCache.offset.push(self.offset[i])
+                        dCache.instID.push(self.instId[i])
                         self.status[i] = Bits(32)(4)
 
                 sentToCache = sentToCache | (isWrite(self.instId[i]) & (self.status[i] == Bits(32)(4))) | (
