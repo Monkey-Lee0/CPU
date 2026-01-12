@@ -113,11 +113,12 @@ class LSB(Module):
             sentToCache = Bits(1)(0)
             sentToRob = Bits(1)(0)
             for i in range(self.lsbSize):
-                with Condition(isWrite(self.instId[i])): # sw, sh, sb, they all look difficult
+                with Condition(isWrite(self.instId[i])): # sw, sh, sb(ljy), they all look difficult
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToCache)):
                         dCache.newAddr.push(self.addr[i])
-                        dCache.newType.push(Bits(1)(1))
                         dCache.wdata.push(self.value[i])
+                        dCache.offset.push(self.offset[i])
+                        dCache.instType.push(self.instId[i])
                         self.clear(i)
 
                 with Condition(isRead(self.instId[i])):
@@ -134,7 +135,6 @@ class LSB(Module):
                     with Condition((self.status[i] == Bits(32)(3)) & (~sentToCache) &
                                    (~self.checkDependency(self.addr[i], self.robId[i]))):
                         dCache.newAddr.push(self.addr[i])
-                        dCache.newType.push(Bits(1)(0))
                         dCache.wdata.push(Bits(32)(0))
                         self.status[i] = Bits(32)(4)
 

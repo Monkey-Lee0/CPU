@@ -132,19 +132,25 @@ class ICache(Module):
         rs.async_called()
         rob.async_called()
 
+def resolve_sb(newData, offset, Val):
+    pass
+
+def resolve_sh(newData, offset, Val):
+    pass
 
 class DCache(Module):
     def __init__(self, cacheSize, init_file):
         super().__init__(ports={
             'newAddr':Port(Bits(32)),
-            'newType':Port(Bits(1)), # read-0 ; write-1
-            'wdata':Port(Bits(32))
+            'wdata':Port(Bits(32)),
+            'offset':Port(Bits(32)),
+            'instID':Port(Bits(32)) # sb(ljy)-25 ; sh-26 ; sw-27
         })
         self.cacheSize = cacheSize
         self.sram = SRAM(32, 16384, init_file)
         self.itemAddr = ValArray(Bits(32), cacheSize, self)
         self.itemValue = ValArray(Bits(32), cacheSize, self)
-        self.itemStatus = ValArray(Bits(32), cacheSize, self) # 0-request not sent; 1-value prepared; 2-request sent
+        self.itemStatus = ValArray(Bits(32), cacheSize, self) # 0-request not sent; 1-value prepared
         self.l = RegArray(Bits(32), 1)
         self.r = RegArray(Bits(32), 1)
 
@@ -201,8 +207,10 @@ class DCache(Module):
 
         # request new read, last top priority
         newAddr = peekWithDefault(self.newAddr, Bits(32)(0))
-        newType = peekWithDefault(self.newType, Bits(1)(0))
         newData = peekWithDefault(self.wdata, Bits(32)(0))
+        offset = peekWithDefault(self.offset, Bits(32)(0))
+        instID = peekWithDefault(self.instID, Bits(32)(0))
+        newType = (instID >= Bits(32)(20)) & (Bits(32)(26) >= instID) # read-0 ; write-1 (sb, sh both need to read before write)
         hasItem = (~self.newAddr.valid()) | self.getItem(newAddr)[0]
         re_new = (~we) & (~re_old) & (~hasItem) & (~newType)
         addr_re_new = newAddr
@@ -228,7 +236,11 @@ class DCache(Module):
             with Condition((self.itemAddr[i] == lastAddr[0]) & (self.itemStatus[i] == Bits(32)(0)) &
                            checkInside(self.l[0], self.r[0], Bits(32)(i))):
                 self.itemStatus[i] = Bits(32)(1)
-                self.itemValue[i] = self.sram.dout[0]
+                Val = self.sram.dout[0]
+                Val = (instID == Bits(32)(25)).select(resolve_sb(newData, offset, Val), Val)
+                Val = (instID == Bits(32)(26)).select(resolve_sh(newData, offset, Val), Val)
+                Val = (instID == Bits(32)(27)).select(newData, Val)
+                self.itemValue[i] = Val
 
 
     def log(self):
