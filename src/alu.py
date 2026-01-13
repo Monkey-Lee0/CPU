@@ -17,16 +17,16 @@ class ALU(Module):
             rhs = self.rhs.pop()
             robId = self.robId.pop()
             res = instId.case({
-                Bits(32)(1):lhs + rhs,
-                Bits(32)(2):lhs - rhs,
-                Bits(32)(3):lhs & rhs,
-                Bits(32)(4):lhs | rhs,
-                Bits(32)(5):lhs ^ rhs,
-                Bits(32)(6):lhs << rhs,
-                Bits(32)(7):lhs >> rhs,
-                Bits(32)(8):(lhs.bitcast(Int(32)) >> rhs).bitcast(Bits(32)),
-                Bits(32)(9):(lhs.bitcast(Int(32)) < rhs.bitcast(Int(32))).zext(Bits(32)),
-                Bits(32)(10):(lhs < rhs).zext(Bits(32)),
+                Bits(32)(1): lhs + rhs,
+                Bits(32)(2): lhs - rhs,
+                Bits(32)(3): lhs & rhs,
+                Bits(32)(4): lhs | rhs,
+                Bits(32)(5): lhs ^ rhs,
+                Bits(32)(6): lhs << rhs,
+                Bits(32)(7): lhs >> rhs,
+                Bits(32)(8): (lhs.bitcast(Int(32)) >> rhs).bitcast(Bits(32)),
+                Bits(32)(9): (lhs.bitcast(Int(32)) < rhs.bitcast(Int(32))).zext(Bits(32)),
+                Bits(32)(10): (lhs < rhs).zext(Bits(32)),
                 Bits(32)(11): lhs + rhs,
                 Bits(32)(12): lhs & rhs,
                 Bits(32)(13): lhs | rhs,
@@ -50,11 +50,17 @@ class ALU(Module):
                 Bits(32)(31): (lhs.bitcast(Int(32)) < rhs.bitcast(Int(32))).zext(Bits(32)),
                 Bits(32)(32): (lhs < rhs).zext(Bits(32)),
                 Bits(32)(33): (lhs != rhs).zext(Bits(32)),
-                # TODO
+                Bits(32)(34): lhs + Bits(32)(4),
+                Bits(32)(35): lhs + Bits(32)(4),
+                Bits(32)(36): lhs + (rhs << Bits(32)(12)),
                 Bits(32)(37): rhs << Bits(32)(12),
                 None: Bits(32)(0)
             })
+            newPC = Bits(32)(0)
+            newPC = (instId == Bits(32)(34)).select(lhs + rhs, newPC)
+            newPC = (instId == Bits(32)(35)).select(lhs + rhs, newPC)
             rob.resFromALU.push(res)
+            rob.PCFromALU.push(newPC)
             rob.idFromALU.push(robId)
 
             log("{}: {} {} {} = {}", robId, lhs, instId, rhs, res)

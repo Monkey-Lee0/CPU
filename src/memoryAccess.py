@@ -79,13 +79,18 @@ class ICache(Module):
 
                 with Condition(hasValue):
                     curInst = parseInst(self.sram.dout[0])
-                    with Condition(curInst.type != Bits(32)(5)):
-                        (pc_cache & self)[0] <= pc_cache[0] + Bits(32)(1)
+                    # jal
+                    with Condition(curInst.type == Bits(32)(7)):
+                        movement = bitsToInt32(curInst.imm,20) >> Bits(32)(2)
+                        (pc_cache & self)[0] <= pc_cache[0] + movement
+                    # jalr
+                    with Condition((curInst.type == Bits(32)(2)) & (curInst.id == Bits(32)(35))):
+                        pass
                     with Condition(curInst.type == Bits(32)(5)):
-                        curInst = parseInst(self.sram.dout[0])
                         movement = bitsToInt32(curInst.imm, 13) >> Bits(32)(2)
                         (pc_cache & self)[0] <= predictor(pc_cache[0] + movement, pc_cache[0] + Bits(32)(1))[1]
-
+                    with Condition((curInst.type != Bits(32)(7)) & (curInst.type == Bits(32)(5))):
+                        (pc_cache & self)[0] <= pc_cache[0] + Bits(32)(1)
                 # issue
                 with Condition(valid):
                     inst = self.cachePool[self.l[0]]
@@ -104,6 +109,7 @@ class ICache(Module):
                     rs.rs2.push(res.rs2)
                     rs.imm.push(res.imm)
                     rs.newId.push(robId[0])
+                    rs.PC.push(pc << Bits(32)(2))
 
                     # issue into rob
                     rob.type.push(res.type)
@@ -113,6 +119,7 @@ class ICache(Module):
                     rob.rs2.push(res.rs2)
                     rob.imm.push(res.imm)
                     rob.newId.push(robId[0])
+                    rob.PC.push(pc << Bits(32)(2))
 
                     # issue into lsb
                     with Condition((res.id >= Bits(32)(20)) & (Bits(32)(27) >= res.id)):
@@ -125,6 +132,7 @@ class ICache(Module):
                         branch, _, otherPC = predictor(pc + movement, pc + Bits(32)(1))
                         rob.expectV.push(branch.zext(Bits(32)))
                         rob.otherPC.push(otherPC)
+                    # jump jal & jalr
                     with Condition(res.type != Bits(32)(5)):
                         rob.expectV.push(Bits(32)(0))
                         rob.otherPC.push(Bits(32)(0))
