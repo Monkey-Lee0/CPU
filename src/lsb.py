@@ -54,6 +54,7 @@ class LSB(Module):
         # 2 -> rs received
         # 3 -> agu received
         # 4 -> rob enabled / read request sent
+        # 5 -> read request sent(for sb, sh)
 
     @module.combinational
     def build(self, dCache, rob):
@@ -99,6 +100,7 @@ class LSB(Module):
                         self.status[i] = Bits(32)(3)
                         self.addr[i] = addr >> Bits(32)(2)
                         self.offset[i] = addr & Bits(32)(3) # reserve the information of position
+                        log("ori {},addr {}, offset {}",addr,addr >> Bits(32)(2), addr & Bits(32)(3))
 
             # enabling flag from rob
             with Condition(self.newId_rob.valid()):

@@ -92,7 +92,6 @@ class ICache(Module):
                         (pc_cache & self)[0] <= pc_cache[0] + movement
                     # jalr
                     with Condition(curInst.id == Bits(32)(35)):
-                        log("where are you?")
                         self.bubble[0] = Bits(1)(1)
                     with Condition(curInst.type == Bits(32)(5)):
                         movement = curInst.imm.bitcast(Int(32)) >> Bits(32)(2)
@@ -164,11 +163,12 @@ def resolve_sb(newData, offset, Val):
 
 def resolve_sh(newData, offset, Val):
     Modification = newData & Bits(32)(0xFFFF)
-    bit_offset = offset << Bits(32)(4)
+    bit_offset = offset << Bits(32)(3)
     clear_mask = ~(Bits(32)(0xFFFF) << bit_offset)
     val_cleared = Val & clear_mask
     mod_shifted = Modification << bit_offset
     result = val_cleared | mod_shifted
+    log("inNewData {}, offset {}, clearMask {},val_cleared {}, mod_shifted {}, result {}", newData, offset, clear_mask, val_cleared, mod_shifted, result)
     return result
 
 class DCache(Module):
@@ -244,6 +244,7 @@ class DCache(Module):
         offset = peekWithDefault(self.offset, Bits(32)(0))
         instID = peekWithDefault(self.instID, Bits(32)(0))
         newType = (instID >= Bits(32)(20)) & (Bits(32)(26) >= instID) # read-0 ; write-1 (sb, sh both need to read before write)
+        log("instID {}, newType {}",instID, newType)
         hasItem = (~self.newAddr.valid()) | self.getItem(newAddr)[0]
         re_new = (~we) & (~re_old) & (~hasItem) & (~newType)
         addr_re_new = newAddr
@@ -255,9 +256,10 @@ class DCache(Module):
             # log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
                 with Condition(newType):
-                    self.push(newAddr, newData, Bits(32)(1))
+                    log("newAddr {}, newData {}",newAddr, newData)
+                    self.push(newAddr, newData, Bits(32)(0))
                 with Condition(~newType):
-                    self.push(newAddr, Bits(32)(0), Bits(32)(0))
+                    self.push(newAddr, newData, Bits(32)(1))
 
         addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
         re = re_old | re_new
@@ -266,14 +268,30 @@ class DCache(Module):
         self.sram.build(we, re, addr_dram, wdata)
         (lastAddr & self)[0] <= addr_dram
 
+        self.log()
+
         for i in range(self.cacheSize):
             with Condition((self.itemAddr[i] == lastAddr[0]) & (self.itemStatus[i] == Bits(32)(0)) &
                            checkInside(self.l[0], self.r[0], Bits(32)(i))):
                 self.itemStatus[i] = Bits(32)(1)
                 Val = self.sram.dout[0]
-                Val = (instID == Bits(32)(25)).select(resolve_sb(newData, offset, Val), Val)
-                Val = (instID == Bits(32)(26)).select(resolve_sh(newData, offset, Val), Val)
-                Val = (instID == Bits(32)(27)).select(newData, Val)
+                log("Val1 {}", Val)
+                Val = (instID == Bits(32)(25)).select(resolve_sb(self.itemValue[i], offset, Val), Val)
+                log("Val2 {}", Val)
+                Val = (instID == Bits(32)(26)).select(resolve_sh(self.itemValue[i], offset, Val), Val)
+                log("Val3 {}",Val)
+                Val = (instID == Bits(32)(27)).select(self.itemValue[i], Val)
+                self.itemValue[i] = Val
+
+            with Condition((self.itemAddr[i] == lastAddr[0]) & (self.itemStatus[i] == Bits(32)(1)) &
+                           checkInside(self.l[0], self.r[0], Bits(32)(i))):
+                Val = self.itemValue[i]
+                log("Val4 {}", Val)
+                Val = (instID == Bits(32)(25)).select(resolve_sb(self.itemValue[i], offset, Val), Val)
+                log("Val5 {}", Val)
+                Val = (instID == Bits(32)(26)).select(resolve_sh(self.itemValue[i], offset, Val), Val)
+                log("Val6 {}", Val)
+                Val = (instID == Bits(32)(27)).select(self.itemValue[i], Val)
                 self.itemValue[i] = Val
 
 
