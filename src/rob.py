@@ -88,7 +88,7 @@ class ROB(Module):
                     self.push(Bits(1)(0), instId, Bits(32)(0), val, newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(5)):
                     self.push(Bits(1)(1), instId, Bits(32)(0), val, newId, expect, anotherPC)
-                with Condition(instType == Bits(32)(7)):
+                with Condition((instType == Bits(32)(6)) | (instType == Bits(32)(7))):
                     rf.build(rd, rf.regs[rd], newId)
                     self.push(Bits(1)(0), instId, rd, val, newId, expect, anotherPC)
 
@@ -132,7 +132,7 @@ class ROB(Module):
                 self.pop()
                 # modify in rf
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3)) |
-                               (instType == Bits(32)(7))):
+                               (instType == Bits(32)(6)) | (instType == Bits(32)(7))):
                     dest = self.dest[self.l[0]]
                     with Condition((rf.dependence[dest] == commitId) & (dest != issueDest)):
                         rf.build(dest, self.value[self.l[0]], Bits(32)(0))

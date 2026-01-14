@@ -111,7 +111,7 @@ class ICache(Module):
                     log("issue {}", robId[0])
                     res.print()
 
-                    with Condition(res.id != Bits(32)(34)):
+                    with Condition((res.id != Bits(32)(34)) & (res.id != Bits(32)(36)) & (res.id != Bits(32)(37))):
                         rs.inst_type.push(res.type)
                         rs.id.push(res.id)
                         rs.rd.push(res.rd)
@@ -127,6 +127,12 @@ class ICache(Module):
                     rob.newId.push(robId[0])
                     with Condition((res.id == Bits(32)(34)) | (res.id == Bits(32)(35))):
                         rob.val.push((pc << Bits(32)(2)) + Bits(32)(4))
+
+                    with Condition(res.id == Bits(32)(36)):
+                        rob.val.push(((pc << Bits(32)(2)) + res.imm))
+
+                    with Condition(res.id == Bits(32)(37)):
+                        rob.val.push(res.imm)
 
                     # issue into lsb
                     with Condition((res.id >= Bits(32)(20)) & (Bits(32)(27) >= res.id)):
