@@ -63,17 +63,21 @@ class ICache(Module):
 
                 self.bubble[0] = Bits(1)(0)
 
-            with Condition((~flush) & (~self.bubble[0])):
-                valid = Bits(1)(0)
+            with Condition(~flush):
+                valid_rs = Bits(1)(0)
                 for i in range(rs.rsSize):
-                    valid = valid | (~rs.busy[i])
+                    valid_rs = valid_rs | (~rs.busy[i])
+                valid_lsb = Bits(1)(0)
                 for i in range(lsb.lsbSize):
-                    valid = valid | (lsb.status[i] == Bits(32)(0))
-                valid = valid & (rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)) & (self.l[0] != self.r[0])
+                    valid_lsb = valid_lsb | (lsb.status[i] == Bits(32)(0))
+                valid_rob = rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)
+                valid_self = self.l[0] != self.r[0]
+                valid = valid_rs & valid_lsb & valid_rob & valid_self
+                # log("{} {} {} {}", valid_rs, valid_lsb, valid_rob, valid_self)
 
                 # read from sram
                 hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0]) & \
-                           ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0])
+                           ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0]) & (~self.bubble[0])
                 with Condition(hasValue):
                     self.push(self.sram.dout[0], pc_cache[0])
 
@@ -84,16 +88,16 @@ class ICache(Module):
                     curInst = parseInst(self.sram.dout[0])
                     # jal
                     with Condition(curInst.type == Bits(32)(7)):
-                        movement = bitsToInt32(curInst.imm,21) >> Bits(32)(2)
+                        movement = curInst.imm.bitcast(Int(32)) >> Int(32)(2)
                         (pc_cache & self)[0] <= pc_cache[0] + movement
                     # jalr
-                    with Condition((curInst.type == Bits(32)(2)) & (curInst.id == Bits(32)(35))):
+                    with Condition(curInst.id == Bits(32)(35)):
+                        log("where are you?")
                         self.bubble[0] = Bits(1)(1)
-                        pass
                     with Condition(curInst.type == Bits(32)(5)):
-                        movement = bitsToInt32(curInst.imm, 13) >> Bits(32)(2)
+                        movement = curInst.imm.bitcast(Int(32)) >> Bits(32)(2)
                         (pc_cache & self)[0] <= predictor(pc_cache[0] + movement, pc_cache[0] + Bits(32)(1))[1]
-                    with Condition((curInst.type != Bits(32)(7)) & (curInst.type == Bits(32)(5))):
+                    with Condition((curInst.type != Bits(32)(5)) & (curInst.type != Bits(32)(7)) & (curInst.id != Bits(32)(35))):
                         (pc_cache & self)[0] <= pc_cache[0] + Bits(32)(1)
                 # issue
                 with Condition(valid):
@@ -115,15 +119,13 @@ class ICache(Module):
                         rs.rs2.push(res.rs2)
                         rs.imm.push(res.imm)
                         rs.newId.push(robId[0])
-                        rs.PC.push(pc << Bits(32)(2))
 
                     # issue into rob
                     rob.type.push(res.type)
                     rob.id.push(res.id)
                     rob.rd.push(res.rd)
                     rob.newId.push(robId[0])
-                    rob.PC.push(pc << Bits(32)(2))
-                    with Condition(res.id == Bits(32)(34)):
+                    with Condition((res.id == Bits(32)(34)) | (res.id == Bits(32)(35))):
                         rob.val.push((pc << Bits(32)(2)) + Bits(32)(4))
 
                     # issue into lsb
@@ -133,7 +135,7 @@ class ICache(Module):
 
                     # branch prediction(currently, pc=pc+4)
                     with Condition(res.type == Bits(32)(5)):
-                        movement = (bitsToInt32(res.imm, 13) >> Bits(32)(2))
+                        movement = (res.imm.bitcast(Int(32)) >> Bits(32)(2))
                         branch, _, otherPC = predictor(pc + movement, pc + Bits(32)(1))
                         rob.expectV.push(branch.zext(Bits(32)))
                         rob.otherPC.push(otherPC)

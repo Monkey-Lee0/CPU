@@ -1,0 +1,11 @@
+li sp 50
+li a7 24
+addi t0 t0 5
+addi t1 t1 6
+addi t2 t2 7
+blt sp t2 8
+jalr a1 a7 -16
+add tp tp t0
+add tp tp t1
+add tp tp t2
+add tp tp a1

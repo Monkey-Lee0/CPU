@@ -66,7 +66,7 @@ def buildSys():
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        dCache = DCache(4, 'workload/dcache.in')
+        dCache = DCache(4, 'workload/'+testcase)
         driver.build(dCache)
         dCache.build()
 

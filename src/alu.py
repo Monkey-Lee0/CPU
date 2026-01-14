@@ -50,17 +50,12 @@ class ALU(Module):
                 Bits(32)(31): (lhs.bitcast(Int(32)) < rhs.bitcast(Int(32))).zext(Bits(32)),
                 Bits(32)(32): (lhs < rhs).zext(Bits(32)),
                 Bits(32)(33): (lhs != rhs).zext(Bits(32)),
-                Bits(32)(34): lhs + Bits(32)(4),
-                Bits(32)(35): lhs + Bits(32)(4),
+                Bits(32)(35): lhs + rhs,
                 Bits(32)(36): lhs + (rhs << Bits(32)(12)),
                 Bits(32)(37): rhs << Bits(32)(12),
                 None: Bits(32)(0)
             })
-            newPC = Bits(32)(0)
-            newPC = (instId == Bits(32)(34)).select(lhs + rhs, newPC)
-            newPC = (instId == Bits(32)(35)).select(lhs + rhs, newPC)
             rob.resFromALU.push(res)
-            rob.PCFromALU.push(newPC)
             rob.idFromALU.push(robId)
 
             log("{}: {} {} {} = {}", robId, lhs, instId, rhs, res)
