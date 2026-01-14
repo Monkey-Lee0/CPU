@@ -1,8 +1,7 @@
 from assassyn.ir.module.downstream import combinational
 
 from inst import *
-from src.memoryAccess import ICache
-
+from utils import bitsToInt32
 
 def takeBitsRange(b:Bits, l:int, r:int):
     return (b>>Bits(32)(l))&((Bits(32)(1)<<Bits(32)(r-l+1))-Bits(32)(1))
@@ -56,7 +55,7 @@ def parseIInst(inst: Bits):
     for [expect, current] in IInst.items():
         instId = (combinedVal == expect).select(current, instId)
 
-    return Inst(Bits(32)(2), instId, rd, rs1, Bits(32)(0), imm).checkCopy(isStar, parseIStarInst(inst))
+    return Inst(Bits(32)(2), instId, rd, rs1, Bits(32)(0), bitsToInt32(imm, 12).bitcast(Bits(32))).checkCopy(isStar, parseIStarInst(inst))
 
 
 def parseIStarInst(inst: Bits):
@@ -66,7 +65,6 @@ def parseIStarInst(inst: Bits):
     imm = takeBitsRange(inst, 20, 24)
     funct7 = takeBitsRange(inst, 25, 31)
     instId = Bits(32)(0)
-
 
     combinedVal = (funct3 << Bits(32)(7)) | funct7
     for [expect, current] in IStarInst.items():
@@ -87,7 +85,7 @@ def parseSInst(inst: Bits):
     for [expect, current] in SInst.items():
         instId = (funct3 == expect).select(current, instId)
 
-    return Inst(Bits(32)(4), instId, Bits(32)(0), rs1, rs2, imm)
+    return Inst(Bits(32)(4), instId, Bits(32)(0), rs1, rs2, bitsToInt32(imm, 12).bitcast(Bits(32)))
 
 def parseBInst(inst: Bits):
     funct3 = takeBitsRange(inst, 12, 14)
@@ -104,7 +102,7 @@ def parseBInst(inst: Bits):
     for [expect, current] in BInst.items():
         instId = (funct3 == expect).select(current, instId)
 
-    return Inst(Bits(32)(5), instId, Bits(32)(0), rs1, rs2, imm)
+    return Inst(Bits(32)(5), instId, Bits(32)(0), rs1, rs2, bitsToInt32(imm, 13).bitcast(Bits(32)))
 
 def parseUInst(inst: Bits):
     opcode = takeBitsRange(inst, 0, 6)
@@ -126,11 +124,11 @@ def parseJInst(inst: Bits):
         (12, 19):(12, 19),
         (20, 20):(11, 11),
         (21, 30):(1, 10),
-        (31, 31):(12, 12),
+        (31, 31):(20, 20),
     })
     instId = Bits(32)(0)
 
     for [expect, current] in JInst.items():
         instId = (opcode == expect).select(current, instId)
 
-    return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), imm)
+    return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), bitsToInt32(imm, 21).bitcast(Bits(32)))

@@ -12,7 +12,6 @@ class RS(Module):
             'rs2':Port(Bits(32)),
             'imm':Port(Bits(32)),
             'newId':Port(Bits(32)),
-            'PC':Port(Bits(32)),
             'robId':Port(Bits(32)),
             'robRes':Port(Bits(32)),
             'flushTag':Port(Bits(1))
@@ -27,7 +26,6 @@ class RS(Module):
         self.qk = ValArray(Bits(32), rsSize, self)
         self.dest = ValArray(Bits(32), rsSize, self)
         self.A = ValArray(Bits(32), rsSize, self)
-        self.PC = ValArray(Bits(32), rsSize, self)
 
     @module.combinational
     def build(self, rf, lsb, alu, agu):
@@ -48,7 +46,6 @@ class RS(Module):
                 rs2 = self.rs2.pop()
                 imm = self.imm.pop()
                 newId = self.newId.pop()
-                pc = self.PC.pop()
 
                 tag = Bits(1)(1)
                 for i in range(self.rsSize):
@@ -63,7 +60,6 @@ class RS(Module):
                             self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i] = Bits(32)(0)
-                            self.PC[i] = pc
                         # type I/I*
                         with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                             self.busy[i] = Bits(1)(1)
@@ -74,7 +70,6 @@ class RS(Module):
                             self.qk[i] = Bits(32)(0)
                             self.dest[i] = newId
                             self.A[i] = imm
-                            self.PC[i] = pc
                         # type S
                         with Condition((instType == Bits(32)(4))):
                             self.busy[i] = Bits(1)(1)
@@ -85,7 +80,6 @@ class RS(Module):
                             self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i] = imm
-                            self.PC[i] = pc
                         # type B
                         with Condition(instType == Bits(32)(5)):
                             self.busy[i] = Bits(1)(1)
@@ -96,7 +90,6 @@ class RS(Module):
                             self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i]= Bits(32)(0)
-                            self.PC[i] = pc
                         # type U (auipc/lui rd label)
                         with Condition(instType == Bits(32)(6)):
                             self.busy[i] = Bits(1)(1)
@@ -107,7 +100,6 @@ class RS(Module):
                             self.qk[i] = Bits(32)(0)
                             self.dest[i] = newId
                             self.A[i] = imm
-                            self.PC[i] = pc
                         # type J (jal rd label)
                         with Condition(instType == Bits(32)(7)):
                             self.busy[i] = Bits(1)(1)
@@ -118,7 +110,6 @@ class RS(Module):
                             self.qk[i] = Bits(32)(0)
                             self.dest[i] = newId
                             self.A[i]= imm
-                            self.PC[i] = pc
                     tag = tag & self.busy[i]
 
             # forward into alu
@@ -152,12 +143,6 @@ class RS(Module):
                         alu.instId.push(self.inst[i])
                         alu.lhs.push(self.vj[i])
                         alu.rhs.push(self.vk[i])
-                        alu.robId.push(self.dest[i])
-                    # type J (jal rd label)
-                    with Condition(instType == Bits(32)(7)):
-                        alu.instId.push(self.inst[i])
-                        alu.lhs.push(self.PC[i])
-                        alu.rhs.push(self.A[i])
                         alu.robId.push(self.dest[i])
                     self.clear(i)
                 tag = tag & (~canExecute)

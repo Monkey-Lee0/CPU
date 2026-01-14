@@ -10,14 +10,12 @@ class ROB(Module):
             'id':Port(Bits(32)),
             'rd':Port(Bits(32)),
             'newId':Port(Bits(32)),
-            'PC':Port(Bits(32)),
             'expectV':Port(Bits(32)),
             'otherPC':Port(Bits(32)),
             'val':Port(Bits(32)),
 
             'resFromALU':Port(Bits(32)),
             'idFromALU':Port(Bits(32)),
-            'pcFromALU':Port(Bits(32)),
 
             'resFromLSB':Port(Bits(32)),
             'idFromLSB':Port(Bits(32))
@@ -27,7 +25,6 @@ class ROB(Module):
         self.inst = ValArray(Bits(32), robSize, self)
         self.dest = ValArray(Bits(32), robSize, self)
         self.value = ValArray(Bits(32), robSize, self)
-        self.PC = ValArray(Bits(32), robSize, self)
         self.expect = ValArray(Bits(32), robSize, self)
         self.anotherPC = ValArray(Bits(32), robSize, self)
         self.ID = ValArray(Bits(32), robSize, self)
@@ -35,14 +32,13 @@ class ROB(Module):
         self.r = RegArray(Bits(32), 1, [0])
 
 
-    def push(self, busy, inst, dest, value, newId, PC, expectV, otherPC):
+    def push(self, busy, inst, dest, value, newId, expectV, otherPC):
         (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.robSize)
         self.busy[self.r[0]] = busy
         self.inst[self.r[0]] = inst
         self.dest[self.r[0]] = dest
         self.value[self.r[0]] = value
         self.ID[self.r[0]] = newId
-        self.PC[self.r[0]] = PC
         self.expect[self.r[0]] = expectV
         self.anotherPC[self.r[0]] = otherPC
 
@@ -57,15 +53,14 @@ class ROB(Module):
         self.dest[pos] = Bits(32)(0)
         self.value[pos] = Bits(32)(0)
         self.ID[pos] = Bits(32)(0)
-        self.PC[pos] = Bits(32)(0)
         self.expect[pos] = Bits(32)(0)
         self.anotherPC[pos] = Bits(32)(0)
 
     def log(self):
         log('-'*50)
         for i in range(self.robSize):
-            log('busy:{} inst:{} dest:{} value:{} PC:{} expectV:{} anotherPC:{}',
-                self.busy[i], self.inst[i], self.dest[i], self.value[i], self.PC[i], self.expect[i], self.anotherPC[i])
+            log('busy:{} inst:{} dest:{} value:{} expectV:{} anotherPC:{}',
+                self.busy[i], self.inst[i], self.dest[i], self.value[i], self.expect[i], self.anotherPC[i])
         log('-'*50)
 
     @module.combinational
@@ -82,31 +77,32 @@ class ROB(Module):
                 instId = self.id.pop()
                 rd = self.rd.pop()
                 newId = self.newId.pop()
-                PC = self.PC.pop()
                 expect = self.expectV.pop()
                 anotherPC = self.otherPC.pop()
                 val = popWithDefault(self.val, Bits(32)(0))
 
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                     rf.build(rd, rf.regs[rd], newId)
-                    self.push(Bits(1)(1), instId, rd, val, newId, PC, expect, anotherPC)
+                    self.push(Bits(1)(1), instId, rd, val, newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(4)):
-                    self.push(Bits(1)(0), instId, Bits(32)(0), val, newId, PC, expect, anotherPC)
+                    self.push(Bits(1)(0), instId, Bits(32)(0), val, newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(5)):
-                    self.push(Bits(1)(1), instId, Bits(32)(0), val, newId, PC, expect, anotherPC)
+                    self.push(Bits(1)(1), instId, Bits(32)(0), val, newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(7)):
-                    self.push(Bits(1)(0), instId, rd, val, newId, PC, expect, anotherPC)
+                    rf.build(rd, rf.regs[rd], newId)
+                    self.push(Bits(1)(0), instId, rd, val, newId, expect, anotherPC)
 
             # receive value from ALU
             with Condition(self.resFromALU.valid()):
                 res = self.resFromALU.pop()
                 robId = self.idFromALU.pop()
-                ALU_PC = self.PC.pop()
                 for i in range(self.robSize):
                     with Condition(self.ID[i] == robId):
-                        self.value[i] = res
-                        self.PC[i] = ALU_PC
                         self.busy[i] = Bits(1)(0)
+                        with Condition(self.inst[i] == Bits(32)(35)):
+                            self.anotherPC[i] = res >> Bits(32)(2)
+                        with Condition(self.inst[i] != Bits(32)(35)):
+                            self.value[i] = res
 
             # receive value from lsb
             with Condition(self.resFromLSB.valid()):
@@ -125,8 +121,8 @@ class ROB(Module):
             for i in range(lsb.lsbSize):
                 lsbPrepared = lsbPrepared | ((lsb.status[i] == Bits(32)(3)) & (lsb.robId[i] == commitId))
             topPrepared = topPrepared & lsbPrepared
-            predictionFailed = ((instType == Bits(32)(5)) | (instType == Bits(32)(7))) & \
-                (self.value[self.l[0]] != self.expect[self.l[0]])
+            predictionFailed = ((instType == Bits(32)(5)) & (self.value[self.l[0]] != self.expect[self.l[0]])) | (
+                self.inst[self.l[0]] == Bits(32)(35))
 
             with Condition(topPrepared):
                 log("commit {} {}", commitId, self.value[self.l[0]])
@@ -135,7 +131,8 @@ class ROB(Module):
                 rs.robRes.push(self.value[self.l[0]])
                 self.pop()
                 # modify in rf
-                with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3))):
+                with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3)) |
+                               (instType == Bits(32)(7))):
                     dest = self.dest[self.l[0]]
                     with Condition((rf.dependence[dest] == commitId) & (dest != issueDest)):
                         rf.build(dest, self.value[self.l[0]], Bits(32)(0))
@@ -150,6 +147,7 @@ class ROB(Module):
                     rs.flushTag.push(Bits(1)(1))
                     ic.flushTag.push(Bits(1)(1))
                     ic.newPC.push(self.anotherPC[self.l[0]])
+                    log("{}", self.anotherPC[self.l[0]])
                     ic.newId.push(self.ID[self.l[0]])
                     lsb.flushTag.push(Bits(1)(1))
                     lsb.flushId.push(self.ID[self.l[0]])

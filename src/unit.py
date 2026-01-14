@@ -20,11 +20,11 @@ class Driver(Module):
         iCache.async_called()
 
 
-def buildSys():
+def buildSys(testcase):
     sys = SysBuilder('CPU')
     with sys:
         driver = Driver()
-        iCache = ICache(8, 'workload/partial_memory1.data')
+        iCache = ICache(8, f'workload/{testcase}.data')
         dCache = DCache(32, 'workload/dcache.in')
         rs = RS(8)
         rob = ROB(8)

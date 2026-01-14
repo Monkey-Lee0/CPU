@@ -1,7 +1,6 @@
 from assassyn.frontend import *
 
-from src.utils import bitsToInt32
-from utils import ValArray
+from utils import ValArray, bitsToInt32
 
 def isRead(instId):
     return (instId >= Bits(32)(20)) & (Bits(32)(24) >= instId)

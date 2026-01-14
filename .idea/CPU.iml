@@ -4,7 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/src/workspace" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.12.3 WSL (Ubuntu): (/home/ljy/.virtualenvs/assassyn/bin/python) (2)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.12.3 WSL (Ubuntu-24.04): (/root/.virtualenvs/assassyn/bin/python) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
