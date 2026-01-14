@@ -24,6 +24,26 @@ def resolve_lh(offset, value):
     l = offset << Bits(32)(3)
     return (bitsToInt32((value >> l) & Bits(32)(0xFFFF),16)).bitcast(Bits(32))
 
+def resolve_sb(newData, offset, Val):
+    Modification = newData & Bits(32)(0xFF)
+    bit_offset = offset << Bits(32)(3)
+    clear_mask = ~(Bits(32)(0xFF) << bit_offset)
+    val_cleared = Val & clear_mask
+    mod_shifted = Modification << bit_offset
+    result = val_cleared | mod_shifted
+    return result
+
+def resolve_sh(newData, offset, Val):
+    Modification = newData & Bits(32)(0xFFFF)
+    bit_offset = offset << Bits(32)(3)
+    clear_mask = ~(Bits(32)(0xFFFF) << bit_offset)
+    val_cleared = Val & clear_mask
+    mod_shifted = Modification << bit_offset
+    result = val_cleared | mod_shifted
+    log("inNewData {}, offset {}, clearMask {},val_cleared {}, mod_shifted {}, result {}", newData, offset, clear_mask, val_cleared, mod_shifted, result)
+    return result
+
+
 class LSB(Module):
     def __init__(self, lsbSize):
         super().__init__(ports={
@@ -99,8 +119,7 @@ class LSB(Module):
                     with Condition(self.robId[i] == newId):
                         self.status[i] = Bits(32)(3)
                         self.addr[i] = addr >> Bits(32)(2)
-                        self.offset[i] = addr & Bits(32)(3) # reserve the information of position
-                        log("ori {},addr {}, offset {}",addr,addr >> Bits(32)(2), addr & Bits(32)(3))
+                        self.offset[i] = addr & Bits(32)(3)
 
             # enabling flag from rob
             with Condition(self.newId_rob.valid()):
@@ -114,13 +133,30 @@ class LSB(Module):
             sentToCache = Bits(1)(0)
             sentToRob = Bits(1)(0)
             for i in range(self.lsbSize):
-                with Condition(isWrite(self.instId[i])): # sw, sh, sb, they all look difficult
+                with Condition(isWrite(self.instId[i])):
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToCache)):
-                        dCache.newAddr.push(self.addr[i])
-                        dCache.wdata.push(self.value[i])
-                        dCache.offset.push(self.offset[i])
-                        dCache.instID.push(self.instId[i])
-                        self.clear(i)
+                        with Condition(self.instId[i] == Bits(32)(27)):
+                            dCache.newAddr.push(self.addr[i])
+                            dCache.wdata.push(self.value[i])
+                            dCache.newType.push(Bits(1)(1))
+                            self.clear(i)
+                        with Condition(self.instId[i] != Bits(32)(27)):
+                            hasItem, _, _ = dCache.getItem(self.addr[i])
+                            with Condition(~hasItem):
+                                dCache.newAddr.push(self.addr[i])
+                                dCache.wdata.push(Bits(32)(0))
+                                dCache.newType.push(Bits(1)(0))
+                            self.status[i] = Bits(32)(5)
+                    with Condition(self.status[i] == Bits(32)(5)):
+                        hasItem, itemStatus, value = dCache.getItem(self.addr[i])
+                        with Condition(itemStatus):
+                            value = (self.instId[i] == Bits(32)(25)).select(
+                                resolve_sb(self.value[i], self.offset[i], value), value)
+                            value = (self.instId[i] == Bits(32)(26)).select(
+                                resolve_sh(self.value[i], self.offset[i], value), value)
+                            dCache.newAddr.push(self.addr[i])
+                            dCache.wdata.push(value)
+                            dCache.newType.push(Bits(1)(1))
 
                 with Condition(isRead(self.instId[i])):
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToRob)):
@@ -137,11 +173,10 @@ class LSB(Module):
                                    (~self.checkDependency(self.addr[i], self.robId[i]))):
                         dCache.newAddr.push(self.addr[i])
                         dCache.wdata.push(Bits(32)(0))
-                        dCache.offset.push(self.offset[i])
-                        dCache.instID.push(self.instId[i])
+                        dCache.newType.push(Bits(1)(1))
                         self.status[i] = Bits(32)(4)
 
-                sentToCache = sentToCache | (isWrite(self.instId[i]) & (self.status[i] == Bits(32)(4))) | (
+                sentToCache = sentToCache | (isWrite(self.instId[i]) & (self.status[i] >= Bits(32)(4))) | (
                     isRead(self.instId[i]) & (self.status[i] == Bits(32)(3)) & (
                     ~self.checkDependency(self.addr[i], self.robId[i])))
                 sentToRob = sentToRob | (isRead(self.instId[i]) & (self.status[i] == Bits(32)(4)) &

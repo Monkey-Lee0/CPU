@@ -152,38 +152,18 @@ class ICache(Module):
         rs.async_called()
         rob.async_called()
 
-def resolve_sb(newData, offset, Val):
-    Modification = newData & Bits(32)(0xFF)
-    bit_offset = offset << Bits(32)(3)
-    clear_mask = ~(Bits(32)(0xFF) << bit_offset)
-    val_cleared = Val & clear_mask
-    mod_shifted = Modification << bit_offset
-    result = val_cleared | mod_shifted
-    return result
-
-def resolve_sh(newData, offset, Val):
-    Modification = newData & Bits(32)(0xFFFF)
-    bit_offset = offset << Bits(32)(3)
-    clear_mask = ~(Bits(32)(0xFFFF) << bit_offset)
-    val_cleared = Val & clear_mask
-    mod_shifted = Modification << bit_offset
-    result = val_cleared | mod_shifted
-    log("inNewData {}, offset {}, clearMask {},val_cleared {}, mod_shifted {}, result {}", newData, offset, clear_mask, val_cleared, mod_shifted, result)
-    return result
-
 class DCache(Module):
     def __init__(self, cacheSize, init_file):
         super().__init__(ports={
             'newAddr':Port(Bits(32)),
             'wdata':Port(Bits(32)),
-            'offset':Port(Bits(32)),
-            'instID':Port(Bits(32)) # sb(ljy)-25 ; sh-26 ; sw-27
+            'newType':Port(Bits(1)) # sb-25 ; sh-26 ; sw-27
         })
         self.cacheSize = cacheSize
         self.sram = SRAM(32, 16384, init_file)
         self.itemAddr = ValArray(Bits(32), cacheSize, self)
         self.itemValue = ValArray(Bits(32), cacheSize, self)
-        self.itemStatus = ValArray(Bits(32), cacheSize, self) # 0-request not sent; 1-value prepared
+        self.itemStatus = ValArray(Bits(1), cacheSize, self) # 0-request not sent; 1-value prepared
         self.l = RegArray(Bits(32), 1)
         self.r = RegArray(Bits(32), 1)
 
@@ -203,16 +183,16 @@ class DCache(Module):
         (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
         self.itemAddr[self.l[0]] = Bits(32)(0)
         self.itemValue[self.l[0]] = Bits(32)(0)
-        self.itemStatus[self.l[0]] = Bits(32)(0)
+        self.itemStatus[self.l[0]] = Bits(1)(0)
 
     def getItem(self, myAddr):
         hasItem = Bits(1)(0)
-        itemStatus = Bits(32)(0)
+        itemStatus = Bits(1)(0)
         value = Bits(32)(0)
         for i in range(self.cacheSize):
             hit = (myAddr == self.itemAddr[i]) & checkInside(self.l[0], self.r[0], Bits(32)(i))
             hasItem = hasItem | hit
-            itemStatus = itemStatus | hit.select(self.itemStatus[i], Bits(32)(0))
+            itemStatus = itemStatus | hit.select(self.itemStatus[i], Bits(1)(0))
             value = hit.select(self.itemValue[i], value)
 
         return hasItem, itemStatus, value
@@ -233,33 +213,29 @@ class DCache(Module):
         addr_re_old = Bits(32)(0)
         for i in range(self.cacheSize):
             inside = checkInside(self.l[0], self.r[0], Bits(32)(i))
-            addr_re_old = ((~re_old) & (self.itemStatus[i] == Bits(32)(0)) & inside).select(
+            addr_re_old = ((~re_old) & (~self.itemStatus[i]) & inside).select(
                 self.itemAddr[i], addr_re_old)
-            re_old = re_old | ((self.itemStatus[i] == Bits(32)(0)) & inside)
+            re_old = re_old | ((~self.itemStatus[i]) & inside)
         re_old = re_old & (~we)
 
         # request new read, last top priority
         newAddr = peekWithDefault(self.newAddr, Bits(32)(0))
         newData = peekWithDefault(self.wdata, Bits(32)(0))
-        offset = peekWithDefault(self.offset, Bits(32)(0))
-        instID = peekWithDefault(self.instID, Bits(32)(0))
-        newType = (instID >= Bits(32)(20)) & (Bits(32)(26) >= instID) # read-0 ; write-1 (sb, sh both need to read before write)
-        log("instID {}, newType {}",instID, newType)
+        newType = peekWithDefault(self.newType, Bits(32)(0)) # read-0 ; write-1 (sb, sh both need to read before write)
         hasItem = (~self.newAddr.valid()) | self.getItem(newAddr)[0]
         re_new = (~we) & (~re_old) & (~hasItem) & (~newType)
         addr_re_new = newAddr
         with Condition(self.newAddr.valid()):
             self.newAddr.pop()
             self.wdata.pop()
-            self.offset.pop()
             self.instID.pop()
             # log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
-                with Condition(newType):
-                    log("newAddr {}, newData {}",newAddr, newData)
-                    self.push(newAddr, newData, Bits(32)(0))
-                with Condition(~newType):
-                    self.push(newAddr, newData, Bits(32)(1))
+                self.push(newAddr, newData, newType)
+            with Condition(hasItem & newType):
+                for i in range(self.cacheSize):
+                    with Condition((self.itemAddr == newAddr) & self.itemStatus[i]):
+                        self.itemValue = newData
 
         addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
         re = re_old | re_new
@@ -271,28 +247,10 @@ class DCache(Module):
         self.log()
 
         for i in range(self.cacheSize):
-            with Condition((self.itemAddr[i] == lastAddr[0]) & (self.itemStatus[i] == Bits(32)(0)) &
+            with Condition((self.itemAddr[i] == lastAddr[0]) & (~self.itemStatus[i]) &
                            checkInside(self.l[0], self.r[0], Bits(32)(i))):
-                self.itemStatus[i] = Bits(32)(1)
-                Val = self.sram.dout[0]
-                log("Val1 {}", Val)
-                Val = (instID == Bits(32)(25)).select(resolve_sb(self.itemValue[i], offset, Val), Val)
-                log("Val2 {}", Val)
-                Val = (instID == Bits(32)(26)).select(resolve_sh(self.itemValue[i], offset, Val), Val)
-                log("Val3 {}",Val)
-                Val = (instID == Bits(32)(27)).select(self.itemValue[i], Val)
-                self.itemValue[i] = Val
-
-            with Condition((self.itemAddr[i] == lastAddr[0]) & (self.itemStatus[i] == Bits(32)(1)) &
-                           checkInside(self.l[0], self.r[0], Bits(32)(i))):
-                Val = self.itemValue[i]
-                log("Val4 {}", Val)
-                Val = (instID == Bits(32)(25)).select(resolve_sb(self.itemValue[i], offset, Val), Val)
-                log("Val5 {}", Val)
-                Val = (instID == Bits(32)(26)).select(resolve_sh(self.itemValue[i], offset, Val), Val)
-                log("Val6 {}", Val)
-                Val = (instID == Bits(32)(27)).select(self.itemValue[i], Val)
-                self.itemValue[i] = Val
+                self.itemStatus[i] = Bits(1)(1)
+                self.itemValue[i] = self.sram.dout[0]
 
 
     def log(self):
