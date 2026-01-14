@@ -18,6 +18,7 @@ class ICache(Module):
         self.sram = SRAM(32, 16384, init_file)
         self.l = RegArray(Bits(32), 1)
         self.r = RegArray(Bits(32), 1)
+        self.bubble = ValArray(Bits(1), 1, self)
 
     def push(self, value, pc):
         (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
@@ -60,7 +61,9 @@ class ICache(Module):
                 for i in range(self.cacheSize):
                     self.clear(i)
 
-            with Condition(~flush):
+                self.bubble[0] = Bits(1)(0)
+
+            with Condition((~flush) & (~self.bubble[0])):
                 valid = Bits(1)(0)
                 for i in range(rs.rsSize):
                     valid = valid | (~rs.busy[i])
@@ -81,10 +84,11 @@ class ICache(Module):
                     curInst = parseInst(self.sram.dout[0])
                     # jal
                     with Condition(curInst.type == Bits(32)(7)):
-                        movement = bitsToInt32(curInst.imm,20) >> Bits(32)(2)
+                        movement = bitsToInt32(curInst.imm,21) >> Bits(32)(2)
                         (pc_cache & self)[0] <= pc_cache[0] + movement
                     # jalr
                     with Condition((curInst.type == Bits(32)(2)) & (curInst.id == Bits(32)(35))):
+                        self.bubble[0] = Bits(1)(1)
                         pass
                     with Condition(curInst.type == Bits(32)(5)):
                         movement = bitsToInt32(curInst.imm, 13) >> Bits(32)(2)
@@ -102,24 +106,25 @@ class ICache(Module):
                     res = parseInst(inst)
                     log("issue {}", robId[0])
                     res.print()
-                    rs.inst_type.push(res.type)
-                    rs.id.push(res.id)
-                    rs.rd.push(res.rd)
-                    rs.rs1.push(res.rs1)
-                    rs.rs2.push(res.rs2)
-                    rs.imm.push(res.imm)
-                    rs.newId.push(robId[0])
-                    rs.PC.push(pc << Bits(32)(2))
+
+                    with Condition(res.id != Bits(32)(34)):
+                        rs.inst_type.push(res.type)
+                        rs.id.push(res.id)
+                        rs.rd.push(res.rd)
+                        rs.rs1.push(res.rs1)
+                        rs.rs2.push(res.rs2)
+                        rs.imm.push(res.imm)
+                        rs.newId.push(robId[0])
+                        rs.PC.push(pc << Bits(32)(2))
 
                     # issue into rob
                     rob.type.push(res.type)
                     rob.id.push(res.id)
                     rob.rd.push(res.rd)
-                    rob.rs1.push(res.rs1)
-                    rob.rs2.push(res.rs2)
-                    rob.imm.push(res.imm)
                     rob.newId.push(robId[0])
                     rob.PC.push(pc << Bits(32)(2))
+                    with Condition(res.id == Bits(32)(34)):
+                        rob.val.push((pc << Bits(32)(2)) + Bits(32)(4))
 
                     # issue into lsb
                     with Condition((res.id >= Bits(32)(20)) & (Bits(32)(27) >= res.id)):
@@ -132,7 +137,7 @@ class ICache(Module):
                         branch, _, otherPC = predictor(pc + movement, pc + Bits(32)(1))
                         rob.expectV.push(branch.zext(Bits(32)))
                         rob.otherPC.push(otherPC)
-                    # jump jal & jalr
+
                     with Condition(res.type != Bits(32)(5)):
                         rob.expectV.push(Bits(32)(0))
                         rob.otherPC.push(Bits(32)(0))

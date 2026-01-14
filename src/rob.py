@@ -1,6 +1,6 @@
 from assassyn.frontend import *
 from inst import idToType
-from src.utils import popAllPorts
+from src.utils import popAllPorts, popWithDefault
 from utils import ValArray
 
 class ROB(Module):
@@ -9,13 +9,11 @@ class ROB(Module):
             'type':Port(Bits(32)),
             'id':Port(Bits(32)),
             'rd':Port(Bits(32)),
-            'rs1':Port(Bits(32)),
-            'rs2':Port(Bits(32)),
-            'imm':Port(Bits(32)),
             'newId':Port(Bits(32)),
             'PC':Port(Bits(32)),
             'expectV':Port(Bits(32)),
             'otherPC':Port(Bits(32)),
+            'val':Port(Bits(32)),
 
             'resFromALU':Port(Bits(32)),
             'idFromALU':Port(Bits(32)),
@@ -83,21 +81,21 @@ class ROB(Module):
                 instType = self.type.pop()
                 instId = self.id.pop()
                 rd = self.rd.pop()
-                rs1 = self.rs1.pop()
-                rs2 = self.rs2.pop()
-                imm = self.imm.pop()
                 newId = self.newId.pop()
                 PC = self.PC.pop()
                 expect = self.expectV.pop()
                 anotherPC = self.otherPC.pop()
+                val = popWithDefault(self.val, Bits(32)(0))
 
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                     rf.build(rd, rf.regs[rd], newId)
-                    self.push(Bits(1)(1), instId, rd, Bits(32)(0), newId, PC, expect, anotherPC)
+                    self.push(Bits(1)(1), instId, rd, val, newId, PC, expect, anotherPC)
                 with Condition(instType == Bits(32)(4)):
-                    self.push(Bits(1)(0), instId, Bits(32)(0), Bits(32)(0), newId, PC, expect, anotherPC)
+                    self.push(Bits(1)(0), instId, Bits(32)(0), val, newId, PC, expect, anotherPC)
                 with Condition(instType == Bits(32)(5)):
-                    self.push(Bits(1)(1), instId, Bits(32)(0), Bits(32)(0), newId, PC, expect, anotherPC)
+                    self.push(Bits(1)(1), instId, Bits(32)(0), val, newId, PC, expect, anotherPC)
+                with Condition(instType == Bits(32)(7)):
+                    self.push(Bits(1)(0), instId, rd, val, newId, PC, expect, anotherPC)
 
             # receive value from ALU
             with Condition(self.resFromALU.valid()):
