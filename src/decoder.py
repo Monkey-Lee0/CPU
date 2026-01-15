@@ -132,3 +132,21 @@ def parseJInst(inst: Bits):
         instId = (opcode == expect).select(current, instId)
 
     return Inst(Bits(32)(7),instId, rd, Bits(32)(0), Bits(32)(0), bitsToInt32(imm, 21).bitcast(Bits(32)))
+
+def parseCInst(inst: Bits):
+    opcode = takeBitsRange(inst, 0, 1)
+    res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
+
+    res.checkCopy(opcode == Bits(32)(0b10), parseC2Inst(inst))
+    res.checkCopy(opcode == Bits(32)(0b00), parseC0Inst(inst))
+    res.checkCopy(opcode == Bits(32)(0b01), parseC1Inst(inst))
+    return res
+
+def parseC0Inst(inst: Bits):
+    opcode = takeBitsRange(inst, 0, 1)
+
+def parseC1Inst(inst: Bits):
+    opcode = takeBitsRange(inst, 0, 1)
+
+def parseC2Inst(inst: Bits):
+    opcode = takeBitsRange(inst, 0, 1)
