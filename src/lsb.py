@@ -14,6 +14,7 @@ def resolve_lbu(offset, value):
 
 def resolve_lb(offset, value):
     l = offset << Bits(32)(3)
+    log("hyw {} {} {}", offset, value, (bitsToInt32((value >> l) & Bits(32)(0xFF),8)))
     return (bitsToInt32((value >> l) & Bits(32)(0xFF),8)).bitcast(Bits(32))
 
 def resolve_lhu(offset, value):
@@ -147,7 +148,7 @@ class LSB(Module):
                                 dCache.wdata.push(Bits(32)(0))
                                 dCache.newType.push(Bits(1)(0))
                             self.status[i] = Bits(32)(5)
-                    with Condition(self.status[i] == Bits(32)(5)):
+                    with Condition((self.status[i] == Bits(32)(5)) & (~sentToCache)):
                         hasItem, itemStatus, value = dCache.getItem(self.addr[i])
                         with Condition(itemStatus):
                             value = (self.instId[i] == Bits(32)(25)).select(
@@ -157,6 +158,9 @@ class LSB(Module):
                             dCache.newAddr.push(self.addr[i])
                             dCache.wdata.push(value)
                             dCache.newType.push(Bits(1)(1))
+                            self.status[i] = Bits(32)(6)
+                    with Condition(self.status[i] == Bits(32)(6)):
+                        self.clear(i)
 
                 with Condition(isRead(self.instId[i])):
                     with Condition((self.status[i] == Bits(32)(4)) & (~sentToRob)):
@@ -169,11 +173,12 @@ class LSB(Module):
                             rob.resFromLSB.push(value)
                             rob.idFromLSB.push(self.robId[i])
                             self.clear(i)
+                    log("?????? {} {} {} {}", self.instId[i], self.status[i], sentToCache, self.checkDependency(self.addr[i], self.robId[i]))
                     with Condition((self.status[i] == Bits(32)(3)) & (~sentToCache) &
                                    (~self.checkDependency(self.addr[i], self.robId[i]))):
                         dCache.newAddr.push(self.addr[i])
                         dCache.wdata.push(Bits(32)(0))
-                        dCache.newType.push(Bits(1)(1))
+                        dCache.newType.push(Bits(1)(0))
                         self.status[i] = Bits(32)(4)
 
                 sentToCache = sentToCache | (isWrite(self.instId[i]) & (self.status[i] >= Bits(32)(4))) | (

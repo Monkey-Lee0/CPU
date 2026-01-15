@@ -41,7 +41,7 @@ if __name__ == "__main__":
         sim_threshold=400,
         idle_threshold=200,
         resource_base=Path(__file__).resolve().parent.parent,
-        random=True
+        random=True,
     )
 
     def run_elaborate():
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     simulator_path, verilator_path = run_quietly(run_elaborate)
 
     def run_simulator():
-        return utils.run_simulator(simulator_path)
+        return utils.run_simulator(simulator_path, offline=True)
 
     result = run_quietly(run_simulator)
     for ind, name in reversed(list(enumerate(RegName))):

@@ -221,21 +221,22 @@ class DCache(Module):
         # request new read, last top priority
         newAddr = peekWithDefault(self.newAddr, Bits(32)(0))
         newData = peekWithDefault(self.wdata, Bits(32)(0))
-        newType = peekWithDefault(self.newType, Bits(32)(0)) # read-0 ; write-1 (sb, sh both need to read before write)
+        newType = peekWithDefault(self.newType, Bits(1)(0)) # read-0 ; write-1 (sb, sh both need to read before write)
         hasItem = (~self.newAddr.valid()) | self.getItem(newAddr)[0]
         re_new = (~we) & (~re_old) & (~hasItem) & (~newType)
         addr_re_new = newAddr
         with Condition(self.newAddr.valid()):
             self.newAddr.pop()
             self.wdata.pop()
-            self.instID.pop()
+            self.newType.pop()
             # log('hillo {} {} {} {} {}', newAddr, newType, newData, hasItem, re_new)
             with Condition(~hasItem):
                 self.push(newAddr, newData, newType)
             with Condition(hasItem & newType):
                 for i in range(self.cacheSize):
-                    with Condition((self.itemAddr == newAddr) & self.itemStatus[i]):
-                        self.itemValue = newData
+                    with Condition((self.itemAddr[i] == newAddr) & self.itemStatus[i]):
+                        log("nmsl {}", newData)
+                        self.itemValue[i] = newData
 
         addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
         re = re_old | re_new
