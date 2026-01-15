@@ -104,44 +104,70 @@ JInst = {
 }
 
 InstName = [
-    'illegal',
-    'add',
-    'sub',
-    'and',
-    'or',
-    'xor',
-    'sll',
-    'srl',
-    'sra',
-    'slt',
-    'sltu',
-    'addi',
-    'andi',
-    'ori',
-    'xori',
-    'slli',
-    'srli',
-    'srai',
-    'slti',
-    'sltiu',
-    'lb',
-    'lbu',
-    'lh',
-    'lhu',
-    'lw',
-    'sb',
-    'sh',
-    'sw',
-    'beq',
-    'bge',
-    'bgeu',
-    'blt',
-    'bltu',
-    'bne',
-    'jal',
-    'jalr',
-    'auipc',
-    'lui'
+    'illegal', # 0
+    'add', # 1
+    'sub', # 2
+    'and', # 3
+    'or', # 4
+    'xor', # 5
+    'sll', # 6
+    'srl', # 7
+    'sra', # 8
+    'slt', # 9
+    'sltu', # 10
+    'addi', # 11
+    'andi', # 12
+    'ori', # 13
+    'xori', # 14
+    'slli', # 15
+    'srli', # 16
+    'srai', # 17
+    'slti', # 18
+    'sltiu', # 19
+    'lb', # 20
+    'lbu', # 21
+    'lh', # 22
+    'lhu', # 23
+    'lw', # 24
+    'sb', # 25
+    'sh', # 26
+    'sw', # 27
+    'beq', # 28
+    'bge', # 29
+    'bgeu', # 30
+    'blt', # 31
+    'bltu', # 32
+    'bne', # 33
+    'jal', # 34
+    'jalr', # 35
+    'auipc', # 36
+    'lui', # 37
+    'c.lwsp', # 38
+    'c.swsp', # 39
+    'c.lw', # 40
+    'c.sw', # 41
+    'c.j', # 42
+    'c.jal', # 43
+    'c.jr', # 44
+    'c.jalr', # 45
+    'c.beqz', # 46
+    'c.bnez', # 47
+    'c.li', # 48
+    'c.lui', # 49
+    'c.addi', # 50
+    'c.addi16sp', # 51
+    'c.addi4spn', # 52
+    'c.slli', # 53
+    'c.srli', # 54
+    'c.srai', # 55
+    'c.andi', # 56
+    'c.mv', # 57
+    'c.add', # 58
+    'c.and', # 59
+    'c.or', # 60
+    'c.xor', # 61
+    'c.sub', # 62
+    'c.nop', # 63
 ]
 
 RegName = [
@@ -178,6 +204,10 @@ RegName = [
     't5',
     't6'
 ]
+
+
+# 1-R 2-I 3-I* 4-S 5-B 6-U 7-J
+# 8-CR 9-CI 10-CSS 11-CIW 12-CL 13-CS 14-CB 15-CJ
 
 idToTypeDict = {
     Bits(32)(0):Bits(32)(0),
@@ -218,6 +248,32 @@ idToTypeDict = {
     Bits(32)(35):Bits(32)(2),
     Bits(32)(36):Bits(32)(6),
     Bits(32)(37):Bits(32)(6),
+    Bits(32)(38):Bits(32)(9),  # c.lwsp对应type CI（编号9）
+    Bits(32)(39):Bits(32)(10), # c.swsp对应type CSS（编号10）
+    Bits(32)(40):Bits(32)(12), # c.lw对应type CL（编号12）
+    Bits(32)(41):Bits(32)(13), # c.sw对应type CS（编号13）
+    Bits(32)(42):Bits(32)(15), # c.j对应type CJ（编号15）
+    Bits(32)(43):Bits(32)(15),  # c.jal对应type CJ（编号15）
+    Bits(32)(44):Bits(32)(8), # c.jr对应type CR（编号8）
+    Bits(32)(45):Bits(32)(8),  # c.jalr对应type CR（编号8）
+    Bits(32)(46):Bits(32)(14), # c.beqz对应type CB（编号14）
+    Bits(32)(47):Bits(32)(14), # c.bnez对应type CB（编号14）
+    Bits(32)(48):Bits(32)(9),  # c.li对应type CI（编号9）
+    Bits(32)(49):Bits(32)(9),  # c.lui对应type CI（编号9）
+    Bits(32)(50):Bits(32)(9),  # c.addi对应type CI（编号9）
+    Bits(32)(51):Bits(32)(9),  # c.addi16sp对应type CI（编号9）
+    Bits(32)(52):Bits(32)(11), # c.addi4spn对应type CIW（编号11）
+    Bits(32)(53):Bits(32)(9),  # c.slli对应type CI（编号9）
+    Bits(32)(54):Bits(32)(14), # c.srli对应type CB（编号14）
+    Bits(32)(55):Bits(32)(14), # c.srai对应type CB（编号14）
+    Bits(32)(56):Bits(32)(14), # c.andi对应type CB（编号14）
+    Bits(32)(57):Bits(32)(8),  # c.mv对应type CR（编号8）
+    Bits(32)(58):Bits(32)(8),  # c.add对应type CR（编号8）
+    Bits(32)(59):Bits(32)(13), # c.and对应type CS（编号13）
+    Bits(32)(60):Bits(32)(13), # c.or对应type CS（编号13）
+    Bits(32)(61):Bits(32)(13), # c.xor对应type CS（编号13）
+    Bits(32)(62):Bits(32)(13), # c.sub对应type CS（编号13）
+    Bits(32)(63):Bits(32)(9)   # c.nop对应type CI（编号9）
 }
 
 def idToType(instId):
