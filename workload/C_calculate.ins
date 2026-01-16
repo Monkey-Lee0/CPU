@@ -1,0 +1,20 @@
+c.addi a1 5
+addi a1 a1 5
+c.li a1 5
+c.lui a2 1
+c.lui a3 1
+lui a2 2
+sub a0 a2 a3
+c.mv a2 a1
+c.add a0 a2
+c.addi16sp 48
+c.addi4spn a0 16
+c.slli a0 4
+c.srli a0 2
+c.srai a0 2
+c.andi a0 15
+c.addi a0 -22
+c.srai a0 2
+c.xor a1 a0
+c.or a1 a0
+c.and a0 a1
