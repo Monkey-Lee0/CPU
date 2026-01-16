@@ -5,16 +5,15 @@ from utils import ValArray, peekWithDefault, checkInside
 def isCInst(inst):
     return (inst & Bits(32)(3)) != Bits(32)(3)
 
-def movePC(pc, inst:Inst, enable, length):
+def movePC(pc, inst:Inst, length):
     inst = parseInst(inst)
-    old_pc = pc
     pc = (inst.type == Bits(32)(7)).select(
         pc + inst.imm.bitcast(Int(32)), pc)
     pc = (inst.type == Bits(32)(5)).select(
         predictor(pc + inst.imm.bitcast(Int(32)), pc + length)[1], pc)
     pc = ((inst.type != Bits(32)(5)) & (inst.type != Bits(32)(7)) & (inst.id != Bits(32)(35))).select(
         pc + length, pc)
-    return enable.select(pc, old_pc)
+    return pc
 
 class ICache(Module):
     def __init__(self, cacheSize: int, init_file):
@@ -35,6 +34,7 @@ class ICache(Module):
 
     def push(self, value, pc, length):
         with Condition((value != Bits(32)(0)) & (value != Bits(32)(0xfe000fa3))):
+            # log("push {} {} {}", value, pc, length)
             (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
             self.cachePool[self.r[0]] = value
             self.instPC[self.r[0]] = pc
@@ -73,13 +73,14 @@ class ICache(Module):
         combined = leftHalfLast[0] | (leftHalf << Bits(32)(16))
 
         pc_cache_combinational = (pc_cache[0] & Bits(32)(3)).case({
-            Bits(32)(0): isCInst(leftHalf).select(movePC(pc_cache[0], leftHalf, re[0], Bits(32)(2)),
-                                                  movePC(pc_cache[0], whole, re[0], Bits(32)(4))),
-            Bits(32)(2): isCInst(rightHalf).select(movePC(pc_cache[0], rightHalf, re[0], Bits(32)(2)),
+            Bits(32)(0): isCInst(leftHalf).select(movePC(pc_cache[0], leftHalf, Bits(32)(2)),
+                                                  movePC(pc_cache[0], whole, Bits(32)(4))),
+            Bits(32)(2): isCInst(rightHalf).select(movePC(pc_cache[0], rightHalf, Bits(32)(2)),
                                                    pc_cache[0] + Bits(32)(3)),
-            Bits(32)(1): movePC(pc_cache[0] - Bits(32)(3), combined, re[0], Bits(32)(4)),
+            Bits(32)(1): movePC(pc_cache[0] - Bits(32)(3), combined, Bits(32)(4)),
             None: pc_cache[0]
         })
+        pc_cache_combinational = re[0].select(pc_cache_combinational, pc_cache[0])
 
         with Condition(re[0] & (~flush)):
             with Condition((pc_cache[0] & Bits(32)(3)) == Bits(32)(0)):
@@ -98,7 +99,7 @@ class ICache(Module):
         self.sram.build(Bits(1)(0), re_combinational, pc_cache_combinational >> Bits(32)(2), Bits(32)(0))
         with Condition(~flush):
             pc_cache[0] = pc_cache_combinational
-        re[0] = re_combinational
+            re[0] = re_combinational
 
         with (Condition(start)):
             # flush
@@ -108,6 +109,7 @@ class ICache(Module):
                 newId = self.newId.pop()
 
                 pc_cache[0] = newPC
+                re[0] = Bits(1)(0)
                 (robId & self)[0] <= newId + Bits(32)(1)
 
                 (self.l & self)[0] <= Bits(32)(0)
@@ -135,7 +137,7 @@ class ICache(Module):
 
                     # issue into rs
                     res = parseInst(inst)
-                    log("issue {}", robId[0])
+                    log("issue {} {} {}", robId[0], inst, pc)
                     res.print()
 
                     with Condition((res.id != Bits(32)(34)) & (res.id != Bits(32)(36)) & (res.id != Bits(32)(37))):
@@ -153,8 +155,8 @@ class ICache(Module):
                     rob.rd.push(res.rd)
                     rob.newId.push(robId[0])
                     rob.val.push(res.id.case({
-                        Bits(32)(34): pc + Bits(32)(4),
-                        Bits(32)(35): pc + Bits(32)(4),
+                        Bits(32)(34): pc + length,
+                        Bits(32)(35): pc + length,
                         Bits(32)(36): pc + res.imm,
                         Bits(32)(37): res.imm,
                         None: Bits(32)(0)

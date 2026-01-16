@@ -318,15 +318,15 @@ unsigned int coder(const instruction a)
     if(op==43)  
         return mergeBit({
             {0b10,0,1},
-            {a.p0,2,6},
-            {a.p1,7,11},
+            {a.p0,0,4,2,6},
+            {a.p2,0,4,7,11},
             {0b1000,12,15}
         });
     if(op==44)
         return mergeBit({
             {0b10,0,1},
-            {a.p0,2,6},
-            {a.p1,7,11},
+            {a.p0,0,4,2,6},
+            {a.p2,0,4,7,11},
             {0b1001,12,15}
         });
     if(op==45)

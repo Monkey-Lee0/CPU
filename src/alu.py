@@ -66,7 +66,7 @@ class ALU(Module):
                 with Condition(rob.ID[i] == robId):
                     rob.busy[i] = Bits(1)(0)
                     with Condition(rob.inst[i] == Bits(32)(35)):
-                        rob.anotherPC[i] = res >> Bits(32)(2)
+                        rob.anotherPC[i] = res
                     with Condition(rob.inst[i] != Bits(32)(35)):
                         rob.value[i] = res
 
