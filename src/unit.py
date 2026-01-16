@@ -34,10 +34,10 @@ def buildSys(testcase):
         lsb = LSB(8)
 
         driver.build(iCache)
-        iCache.build(rs, rob, lsb)
+        iCache.build(rs, rob, lsb, rf)
         dCache.build()
         rs.build(rf, lsb, alu, agu)
-        rob.build(rf, iCache, rs, lsb)
+        rob.build(rf, iCache, rs, lsb, alu)
         alu.build(rob)
         agu.build(lsb)
         lsb.build(dCache, rob)

@@ -14,7 +14,6 @@ def resolve_lbu(offset, value):
 
 def resolve_lb(offset, value):
     l = offset << Bits(32)(3)
-    log("hyw {} {} {}", offset, value, (bitsToInt32((value >> l) & Bits(32)(0xFF),8)))
     return (bitsToInt32((value >> l) & Bits(32)(0xFF),8)).bitcast(Bits(32))
 
 def resolve_lhu(offset, value):
@@ -41,7 +40,6 @@ def resolve_sh(newData, offset, Val):
     val_cleared = Val & clear_mask
     mod_shifted = Modification << bit_offset
     result = val_cleared | mod_shifted
-    log("inNewData {}, offset {}, clearMask {},val_cleared {}, mod_shifted {}, result {}", newData, offset, clear_mask, val_cleared, mod_shifted, result)
     return result
 
 
@@ -76,6 +74,7 @@ class LSB(Module):
         # 3 -> agu received
         # 4 -> rob enabled / read request sent
         # 5 -> read request sent(for sb, sh)
+        # 6 -> wait for a cycle(for sb, sh)
 
     @module.combinational
     def build(self, dCache, rob):
@@ -170,10 +169,13 @@ class LSB(Module):
                         value = (self.instId[i] == Bits(32)(22)).select(resolve_lh(self.offset[i],value),value)
                         value = (self.instId[i] == Bits(32)(23)).select(resolve_lhu(self.offset[i],value),value)
                         with Condition(itemStatus == Bits(32)(1)):
-                            rob.resFromLSB.push(value)
-                            rob.idFromLSB.push(self.robId[i])
+                            # modify in rob
+                            for j in range(rob.robSize):
+                                with Condition(rob.ID[j] == self.robId[i]):
+                                    rob.value[j] = value
+                                    rob.busy[j] = Bits(1)(0)
                             self.clear(i)
-                    log("?????? {} {} {} {}", self.instId[i], self.status[i], sentToCache, self.checkDependency(self.addr[i], self.robId[i]))
+
                     with Condition((self.status[i] == Bits(32)(3)) & (~sentToCache) &
                                    (~self.checkDependency(self.addr[i], self.robId[i]))):
                         dCache.newAddr.push(self.addr[i])
@@ -210,3 +212,8 @@ class LSB(Module):
                 self.we[i], self.value[i], self.enabled[i])
         log('-'*50)
 
+    def full(self):
+        cnt = Bits(32)(0)
+        for i in range(self.lsbSize):
+            cnt = cnt + (self.status[i] == Bits(32)(0)).bitcast(Bits(32))
+        return Bits(32)(2) >= cnt

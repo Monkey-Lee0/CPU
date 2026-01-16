@@ -1,5 +1,6 @@
 from assassyn.frontend import *
 from rob import ROB
+from utils import popAllPorts
 
 class ALU(Module):
     def __init__(self):
@@ -7,11 +8,15 @@ class ALU(Module):
             'instId':Port(Bits(32)),
             'lhs':Port(Bits(32)),
             'rhs':Port(Bits(32)),
-            'robId':Port(Bits(32))
+            'robId':Port(Bits(32)),
+            'flushTag':Port(Bits(1))
         })
     @module.combinational
     def build(self,rob:ROB):
-        with Condition(self.instId.valid()):
+        flush = self.flushTag.valid()
+        with Condition(flush):
+            popAllPorts(self)
+        with Condition((~flush) & self.instId.valid()):
             instId = self.instId.pop()
             lhs = self.lhs.pop()
             rhs = self.rhs.pop()
@@ -55,8 +60,15 @@ class ALU(Module):
                 Bits(32)(37): rhs << Bits(32)(12),
                 None: Bits(32)(0)
             })
-            rob.resFromALU.push(res)
-            rob.idFromALU.push(robId)
+
+            # modify in rob
+            for i in range(rob.robSize):
+                with Condition(rob.ID[i] == robId):
+                    rob.busy[i] = Bits(1)(0)
+                    with Condition(rob.inst[i] == Bits(32)(35)):
+                        rob.anotherPC[i] = res >> Bits(32)(2)
+                    with Condition(rob.inst[i] != Bits(32)(35)):
+                        rob.value[i] = res
 
             log("{}: {} {} {} = {}", robId, lhs, instId, rhs, res)
 

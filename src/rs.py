@@ -12,9 +12,9 @@ class RS(Module):
             'rs2':Port(Bits(32)),
             'imm':Port(Bits(32)),
             'newId':Port(Bits(32)),
+            'flushTag':Port(Bits(1)),
             'robId':Port(Bits(32)),
-            'robRes':Port(Bits(32)),
-            'flushTag':Port(Bits(1))
+            'robRes':Port(Bits(32))
         })
 
         self.rsSize = rsSize
@@ -27,6 +27,15 @@ class RS(Module):
         self.dest = ValArray(Bits(32), rsSize, self)
         self.A = ValArray(Bits(32), rsSize, self)
 
+    def accept(self, robId, value):
+        for i in range(self.rsSize):
+            with Condition(self.qj[i] == robId):
+                self.qj[i] = Bits(32)(0)
+                self.vj[i] = value
+            with Condition(self.qk[i] == robId):
+                self.qk[i] = Bits(32)(0)
+                self.vk[i] = value
+
     @module.combinational
     def build(self, rf, lsb, alu, agu):
         # flush
@@ -37,6 +46,11 @@ class RS(Module):
             popAllPorts(self)
 
         with Condition(~flush):
+            # check robRes(to solve the problem that rob commits and rs issues in the same cycle)
+            with Condition(self.robId.valid()):
+                robId = self.robId.pop()
+                robRes = self.robRes.pop()
+                self.accept(robId, robRes)
             # issue into rs
             with Condition(self.inst_type.valid()):
                 instType = self.inst_type.pop()
@@ -161,18 +175,6 @@ class RS(Module):
                     self.clear(i)
                 tag = tag & (~canExecute)
 
-            # update from rob
-            with Condition(self.robId.valid()):
-                robId = self.robId.pop()
-                robRes = self.robRes.pop()
-                for i in range(self.rsSize):
-                    with Condition(self.qj[i] == robId):
-                        self.qj[i] = Bits(32)(0)
-                        self.vj[i] = robRes
-                    with Condition(self.qk[i] == robId):
-                        self.qk[i] = Bits(32)(0)
-                        self.vk[i] = robRes
-
         alu.async_called()
         agu.async_called()
         # self.log()
@@ -194,3 +196,9 @@ class RS(Module):
         self.qk[ind] = Bits(32)(0)
         self.dest[ind] = Bits(32)(0)
         self.A[ind] = Bits(32)(0)
+
+    def full(self):
+        cnt = Bits(32)(0)
+        for i in range(self.rsSize):
+            cnt = cnt + (~self.busy[i]).bitcast(Bits(32))
+        return Bits(32)(2) >= cnt

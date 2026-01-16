@@ -13,12 +13,6 @@ class ROB(Module):
             'expectV':Port(Bits(32)),
             'otherPC':Port(Bits(32)),
             'val':Port(Bits(32)),
-
-            'resFromALU':Port(Bits(32)),
-            'idFromALU':Port(Bits(32)),
-
-            'resFromLSB':Port(Bits(32)),
-            'idFromLSB':Port(Bits(32))
         })
         self.robSize = robSize
         self.busy = ValArray(Bits(1), robSize, self)
@@ -42,7 +36,6 @@ class ROB(Module):
         self.expect[self.r[0]] = expectV
         self.anotherPC[self.r[0]] = otherPC
 
-
     def pop(self):
         (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.robSize)
         self.clear(self.l[0])
@@ -56,15 +49,19 @@ class ROB(Module):
         self.expect[pos] = Bits(32)(0)
         self.anotherPC[pos] = Bits(32)(0)
 
+    def full(self):
+        return ((self.r[0] + Bits(32)(1)) % Bits(32)(self.robSize) == self.l[0]) | \
+            ((self.r[0] + Bits(32)(2)) % Bits(32)(self.robSize) == self.l[0])
+
     def log(self):
         log('-'*50)
         for i in range(self.robSize):
-            log('busy:{} inst:{} dest:{} value:{} expectV:{} anotherPC:{}',
-                self.busy[i], self.inst[i], self.dest[i], self.value[i], self.expect[i], self.anotherPC[i])
+            log('busy:{} inst:{} dest:{} value:{} ID:{} expectV:{} anotherPC:{}',
+                self.busy[i], self.inst[i], self.dest[i], self.value[i], self.ID[i], self.expect[i], self.anotherPC[i])
         log('-'*50)
 
     @module.combinational
-    def build(self, rf, ic, rs, lsb):
+    def build(self, rf, ic, rs, lsb, alu):
         flush = RegArray(Bits(1), 1)
 
         with (Condition(~flush[0])):
@@ -92,33 +89,13 @@ class ROB(Module):
                     rf.build(rd, rf.regs[rd], newId)
                     self.push(Bits(1)(0), instId, rd, val, newId, expect, anotherPC)
 
-            # receive value from ALU
-            with Condition(self.resFromALU.valid()):
-                res = self.resFromALU.pop()
-                robId = self.idFromALU.pop()
-                for i in range(self.robSize):
-                    with Condition(self.ID[i] == robId):
-                        self.busy[i] = Bits(1)(0)
-                        with Condition(self.inst[i] == Bits(32)(35)):
-                            self.anotherPC[i] = res >> Bits(32)(2)
-                        with Condition(self.inst[i] != Bits(32)(35)):
-                            self.value[i] = res
-
-            # receive value from lsb
-            with Condition(self.resFromLSB.valid()):
-                res = self.resFromLSB.pop()
-                robId = self.idFromLSB.pop()
-                for i in range(self.robSize):
-                    with Condition(self.ID[i] == robId):
-                        self.value[i] = res
-                        self.busy[i] = Bits(1)(0)
-
             # commit
             commitId = self.ID[self.l[0]]
             instType = idToType(self.inst[self.l[0]])
             topPrepared = (self.l[0] != self.r[0]) & (~self.busy[self.l[0]])
             lsbPrepared = instType != Bits(32)(4)
             for i in range(lsb.lsbSize):
+                # log("lsb.status[i]:{}, lsb.robId[i]:{}", lsb.status[i], lsb.robId[i])
                 lsbPrepared = lsbPrepared | ((lsb.status[i] == Bits(32)(3)) & (lsb.robId[i] == commitId))
             topPrepared = topPrepared & lsbPrepared
             predictionFailed = ((instType == Bits(32)(5)) & (self.value[self.l[0]] != self.expect[self.l[0]])) | (
@@ -126,10 +103,11 @@ class ROB(Module):
 
             with Condition(topPrepared):
                 log("commit {} {}", commitId, self.value[self.l[0]])
-                # deliver to rs
+                self.pop()
+                # modify in rs
+                rs.accept(commitId, self.value[self.l[0]])
                 rs.robId.push(commitId)
                 rs.robRes.push(self.value[self.l[0]])
-                self.pop()
                 # modify in rf
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3)) |
                                (instType == Bits(32)(6)) | (instType == Bits(32)(7))):
@@ -151,6 +129,7 @@ class ROB(Module):
                     ic.newId.push(self.ID[self.l[0]])
                     lsb.flushTag.push(Bits(1)(1))
                     lsb.flushId.push(self.ID[self.l[0]])
+                    alu.flushTag.push(Bits(1)(1))
 
         # flush
         with Condition(flush[0]):

@@ -34,16 +34,16 @@ class ICache(Module):
         self.clear(self.l[0])
 
     def full(self):
-        return ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0]) & \
-            ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0])
+        return ((self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) == self.l[0]) | \
+            ((self.r[0] + Bits(32)(2)) % Bits(32)(self.cacheSize) == self.l[0])
 
     @module.combinational
-    def build(self, rs, rob, lsb):
+    def build(self, rs, rob, lsb, rf):
         robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
         flush = self.flushTag.valid()
 
-        re = ValArray(Bits(32), 1, self)
+        re = ValArray(Bits(1), 1, self)
         pc_cache = ValArray(Bits(32), 1, self)
 
         # combinational logic for pc_cache & re
@@ -60,11 +60,15 @@ class ICache(Module):
         )
         pc_cache_combinational = (re[0] & (curInst.type != Bits(32)(5)) & (curInst.type != Bits(32)(7))
               & (curInst.id != Bits(32)(35))).select(pc_cache[0] + Bits(32)(1), pc_cache_combinational)
-        with Condition(re[0] & (curInst.id == Bits(32)(35))):
+        with Condition(re[0] & ((curInst.id == Bits(32)(35)) | (self.sram.dout[0] == Bits(32)(0xfe000fa3)))):
             self.bubble[0] = Bits(1)(1)
+        with Condition(re[0] & (self.sram.dout[0] != Bits(32)(0)) & \
+                       (self.sram.dout[0] != Bits(32)(0xfe000fa3)) & (~flush)):
+            self.push(self.sram.dout[0], pc_cache[0])
 
         self.sram.build(Bits(1)(0), re_combinational, pc_cache_combinational, Bits(32)(0))
-        pc_cache[0] = pc_cache_combinational
+        with Condition(~flush):
+            pc_cache[0] = pc_cache_combinational
         re[0] = re_combinational
 
         with (Condition(start)):
@@ -86,13 +90,9 @@ class ICache(Module):
                 self.bubble[0] = Bits(1)(0)
 
             with Condition(~flush):
-                valid_rs = Bits(1)(0)
-                for i in range(rs.rsSize):
-                    valid_rs = valid_rs | (~rs.busy[i])
-                valid_lsb = Bits(1)(0)
-                for i in range(lsb.lsbSize):
-                    valid_lsb = valid_lsb | (lsb.status[i] == Bits(32)(0))
-                valid_rob = rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)
+                valid_rs = ~rs.full()
+                valid_lsb = ~lsb.full()
+                valid_rob = ~rob.full()
                 valid_self = self.l[0] != self.r[0]
                 valid = valid_rs & valid_lsb & valid_rob & valid_self
 
@@ -122,30 +122,22 @@ class ICache(Module):
                     rob.id.push(res.id)
                     rob.rd.push(res.rd)
                     rob.newId.push(robId[0])
-                    with Condition((res.id == Bits(32)(34)) | (res.id == Bits(32)(35))):
-                        rob.val.push((pc << Bits(32)(2)) + Bits(32)(4))
-
-                    with Condition(res.id == Bits(32)(36)):
-                        rob.val.push(((pc << Bits(32)(2)) + res.imm))
-
-                    with Condition(res.id == Bits(32)(37)):
-                        rob.val.push(res.imm)
+                    rob.val.push(res.id.case({
+                        Bits(32)(34): (pc << Bits(32)(2)) + Bits(32)(4),
+                        Bits(32)(35): (pc << Bits(32)(2)) + Bits(32)(4),
+                        Bits(32)(36): (pc << Bits(32)(2)) + res.imm,
+                        Bits(32)(37): res.imm,
+                        None: Bits(32)(0)
+                    }))
+                    # (branch prediction)
+                    branch, _, otherPC = predictor(pc + (res.imm.bitcast(Int(32)) >> Bits(32)(2)), pc + Bits(32)(1))
+                    rob.expectV.push((res.type == Bits(32)(5)).select(branch.zext(Bits(32)), Bits(32)(0)))
+                    rob.otherPC.push((res.type == Bits(32)(5)).select(otherPC, Bits(32)(0)))
 
                     # issue into lsb
                     with Condition((res.id >= Bits(32)(20)) & (Bits(32)(27) >= res.id)):
                         lsb.newId_ic.push(robId[0])
                         lsb.inst_id.push(res.id)
-
-                    # branch prediction(currently, pc=pc+4)
-                    with Condition(res.type == Bits(32)(5)):
-                        movement = (res.imm.bitcast(Int(32)) >> Bits(32)(2))
-                        branch, _, otherPC = predictor(pc + movement, pc + Bits(32)(1))
-                        rob.expectV.push(branch.zext(Bits(32)))
-                        rob.otherPC.push(otherPC)
-
-                    with Condition(res.type != Bits(32)(5)):
-                        rob.expectV.push(Bits(32)(0))
-                        rob.otherPC.push(Bits(32)(0))
 
         rs.async_called()
         rob.async_called()
@@ -233,17 +225,14 @@ class DCache(Module):
             with Condition(hasItem & newType):
                 for i in range(self.cacheSize):
                     with Condition((self.itemAddr[i] == newAddr) & self.itemStatus[i]):
-                        log("nmsl {}", newData)
                         self.itemValue[i] = newData
 
         addr_dram = we.select(addr_we, re_old.select(addr_re_old, re_new.select(addr_re_new, Bits(32)(0))))
         re = re_old | re_new
-        # log("{} {} {} {} {}", we, re, addr_dram, wdata, lastAddr[0])
-        # self.log()
         self.sram.build(we, re, addr_dram, wdata)
         (lastAddr & self)[0] <= addr_dram
 
-        self.log()
+        # self.log()
 
         for i in range(self.cacheSize):
             with Condition((self.itemAddr[i] == lastAddr[0]) & (~self.itemStatus[i]) &

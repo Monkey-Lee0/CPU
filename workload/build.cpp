@@ -1,4 +1,11 @@
 #include<bits/stdc++.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <tchar.h>
+#else
+#include <dirent.h>
+#include <cstring>
+#endif
 using namespace std;
 
 const bool pseudo=true;
@@ -362,18 +369,115 @@ inline instruction strToInstruction(string str)
     return {static_cast<OP>(op),0,0,0};
 }
 
+std::vector<std::string> get_all_ins_files() {
+    std::vector<std::string> ins_files;
+
+#ifdef _WIN32
+    // Windows 平台实现
+    WIN32_FIND_DATA find_file_data;
+    HANDLE hFind = FindFirstFile(_T("*.ins"), &find_file_data);
+
+    // 检查查找是否成功
+    if (hFind == INVALID_HANDLE_VALUE) {
+        // 没有找到任何.ins文件时，GetLastError()会返回ERROR_FILE_NOT_FOUND
+        DWORD error = GetLastError();
+        if (error != ERROR_FILE_NOT_FOUND) {
+            std::cerr << "查找.ins文件失败，错误码: " << error << std::endl;
+        }
+        return ins_files;
+    }
+
+    // 遍历所有匹配的文件
+    do {
+        // 排除目录（只保留文件）
+        if (!(find_file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            // 将TCHAR转换为std::string
+#ifdef UNICODE
+            char filename[MAX_PATH];
+            WideCharToMultiByte(CP_ACP, 0, find_file_data.cFileName, -1,
+                                filename, MAX_PATH, NULL, NULL);
+            ins_files.push_back(std::string(filename));
+#else
+            ins_files.push_back(std::string(find_file_data.cFileName));
+#endif
+        }
+    } while (FindNextFile(hFind, &find_file_data) != 0);
+
+    // 检查遍历结束的原因（是否是正常遍历完成）
+    DWORD error = GetLastError();
+    if (error != ERROR_NO_MORE_FILES) {
+        std::cerr << "遍历.ins文件失败，错误码: " << error << std::endl;
+    }
+
+    // 关闭查找句柄
+    FindClose(hFind);
+
+#else
+    // Linux/macOS 平台实现
+    DIR* dir = opendir(".");  // 打开当前目录
+    if (dir == nullptr) {
+        std::cerr << "打开当前目录失败: " << strerror(errno) << std::endl;
+        return ins_files;
+    }
+
+    struct dirent* entry;
+    // 遍历目录中的每个条目
+    while ((entry = readdir(dir)) != nullptr) {
+        // 跳过目录（只处理文件）
+        if (entry->d_type != DT_REG) {
+            continue;
+        }
+
+        // 获取文件名并检查后缀是否为.ins
+        std::string filename = entry->d_name;
+        size_t dot_pos = filename.find_last_of('.');
+        if (dot_pos != std::string::npos && filename.substr(dot_pos) == ".ins") {
+            ins_files.push_back(filename);
+        }
+    }
+
+    closedir(dir);  // 关闭目录
+#endif
+
+    return ins_files;
+}
+
 int main(int argc,char *argv[])
 {
-	if(argc!=3)
-		throw runtime_error("3 args expected");
-	ifstream ifs(argv[1]);
-	ofstream ofs(argv[2]);
-    string input;
-    string result;
-    while(getline(ifs,input))
-    {
-		ofs<<hexize(coder(strToInstruction(input)))<<endl;
-    }
+	if(argc==3)
+	{
+        ifstream ifs(argv[1]);
+        ofstream ofs(argv[2]);
+        string input;
+        string result;
+        while(getline(ifs,input))
+        {
+            ofs<<hexize(coder(strToInstruction(input)))<<endl;
+        }
+	}
+	else if(argc==1)
+	{
+        std::vector<std::string> ins_files = get_all_ins_files();
+        for(auto str:ins_files)
+        {
+            string str_data=str;
+            str_data.pop_back();
+            str_data.pop_back();
+            str_data.pop_back();
+            str_data+="data";
+            ifstream ifs(str);
+            ofstream ofs(str_data);
+            string input;
+            string result;
+            while(getline(ifs,input))
+            {
+                ofs<<hexize(coder(strToInstruction(input)))<<endl;
+            }
+        }
+	}
+	else
+		throw runtime_error("1 or 3 args expected");
+
 
     return 0;
 }
