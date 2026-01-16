@@ -317,7 +317,7 @@ def parseCandi(inst: Bits):
     return Inst(Bits(32)(2), Bits(32)(12), rd, rd, Bits(32)(0), bitsToInt32(imm, 6).bitcast(Bits(32)))
 
 def parseCS(inst: Bits):
-    funct2 = takeBitsRange(inst, 8,  9)
+    funct2 = takeBitsRange(inst, 5,6)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
     res = res.checkCopy(funct2 == Bits(32)(0b00), parseCand(inst))
     res = res.checkCopy(funct2 == Bits(32)(0b01), parseCor(inst))
