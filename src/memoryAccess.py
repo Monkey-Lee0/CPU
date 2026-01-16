@@ -2,10 +2,14 @@ from decoder import *
 from predictor import predictor
 from utils import ValArray, peekWithDefault, checkInside
 
+def isCInst(inst):
+    return (inst & Bits(32)(3)) != Bits(32)(3)
+
 def movePC(pc, inst:Inst, enable, length):
+    inst = parseInst(inst)
     old_pc = pc
     pc = (inst.type == Bits(32)(7)).select(
-        pc + (inst.imm.bitcast(Int(32)), pc))
+        pc + inst.imm.bitcast(Int(32)), pc)
     pc = (inst.type == Bits(32)(5)).select(
         predictor(pc + inst.imm.bitcast(Int(32)), pc + length)[1], pc)
     pc = ((inst.type != Bits(32)(5)) & (inst.type != Bits(32)(7)) & (inst.id != Bits(32)(35))).select(
@@ -30,10 +34,13 @@ class ICache(Module):
         self.bubble = ValArray(Bits(1), 1, self)
 
     def push(self, value, pc, length):
-        (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
-        self.cachePool[self.r[0]] = value
-        self.instPC[self.r[0]] = pc
-        self.length[self.r[0]] = length
+        with Condition((value != Bits(32)(0)) & (value != Bits(32)(0xfe000fa3))):
+            (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
+            self.cachePool[self.r[0]] = value
+            self.instPC[self.r[0]] = pc
+            self.length[self.r[0]] = length
+        with Condition((value == Bits(32)(0xfe000fa3)) | (parseInst(value).id == Bits(32)(35))):
+            self.bubble[0] = Bits(1)(1)
 
     def clear(self, pos):
         self.cachePool[pos] = Bits(32)(0)
@@ -56,17 +63,37 @@ class ICache(Module):
 
         re = ValArray(Bits(1), 1, self)
         pc_cache = ValArray(Bits(32), 1, self)
+        leftHalfLast = ValArray(Bits(32), 1, self)
 
         # combinational logic for pc_cache & re
         re_combinational = start & (~flush) & (~self.full()) & (~self.bubble[0])
-        curInst = parseInst(self.sram.dout[0])
-        pc_cache_combinational = movePC(pc_cache[0], curInst, re[0], 4)
+        leftHalf = takeBitsRange(self.sram.dout[0], 0, 15)
+        rightHalf = takeBitsRange(self.sram.dout[0], 16, 31)
+        whole = self.sram.dout[0]
+        combined = leftHalfLast[0] | (leftHalf << Bits(32)(16))
 
-        with Condition(re[0] & ((curInst.id == Bits(32)(35)) | (self.sram.dout[0] == Bits(32)(0xfe000fa3)))):
-            self.bubble[0] = Bits(1)(1)
-        with Condition(re[0] & (self.sram.dout[0] != Bits(32)(0)) & \
-                       (self.sram.dout[0] != Bits(32)(0xfe000fa3)) & (~flush)):
-            self.push(self.sram.dout[0], pc_cache[0], Bits(32)(4))
+        pc_cache_combinational = (pc_cache[0] & Bits(32)(3)).case({
+            Bits(32)(0): isCInst(leftHalf).select(movePC(pc_cache[0], leftHalf, re[0], Bits(32)(2)),
+                                                  movePC(pc_cache[0], whole, re[0], Bits(32)(4))),
+            Bits(32)(2): isCInst(rightHalf).select(movePC(pc_cache[0], rightHalf, re[0], Bits(32)(2)),
+                                                   pc_cache[0] + Bits(32)(3)),
+            Bits(32)(1): movePC(pc_cache[0] - Bits(32)(3), combined, re[0], Bits(32)(4)),
+            None: pc_cache[0]
+        })
+
+        with Condition(re[0] & (~flush)):
+            with Condition((pc_cache[0] & Bits(32)(3)) == Bits(32)(0)):
+                with Condition(isCInst(leftHalf)):
+                    self.push(leftHalf, pc_cache[0], Bits(32)(2))
+                with Condition(~isCInst(leftHalf)):
+                    self.push(whole, pc_cache[0], Bits(32)(4))
+            with Condition((pc_cache[0] & Bits(32)(3)) == Bits(32)(2)):
+                with Condition(isCInst(rightHalf)):
+                    self.push(rightHalf, pc_cache[0], Bits(32)(2))
+                with Condition(~isCInst(rightHalf)):
+                    leftHalfLast[0] = rightHalf
+            with Condition((pc_cache[0] & Bits(32)(3)) == Bits(32)(1)):
+                self.push(combined, pc_cache[0] - Bits(32)(3), Bits(32)(4))
 
         self.sram.build(Bits(1)(0), re_combinational, pc_cache_combinational >> Bits(32)(2), Bits(32)(0))
         with Condition(~flush):
