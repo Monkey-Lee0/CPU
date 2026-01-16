@@ -1,8 +1,16 @@
 from decoder import *
-from utils import ValArray, peekWithDefault, checkInside
 from predictor import predictor
-from assassyn.frontend import *
-from assassyn.ir.expr.intrinsic import get_mem_resp
+from utils import ValArray, peekWithDefault, checkInside
+
+def movePC(pc, inst:Inst, enable, length):
+    old_pc = pc
+    pc = (inst.type == Bits(32)(7)).select(
+        pc + (inst.imm.bitcast(Int(32)), pc))
+    pc = (inst.type == Bits(32)(5)).select(
+        predictor(pc + inst.imm.bitcast(Int(32)), pc + length)[1], pc)
+    pc = ((inst.type != Bits(32)(5)) & (inst.type != Bits(32)(7)) & (inst.id != Bits(32)(35))).select(
+        pc + length, pc)
+    return enable.select(pc, old_pc)
 
 class ICache(Module):
     def __init__(self, cacheSize: int, init_file):
@@ -15,19 +23,22 @@ class ICache(Module):
         self.cacheSize = cacheSize
         self.cachePool = ValArray(Bits(32), cacheSize, self)
         self.instPC = ValArray(Bits(32), cacheSize, self)
+        self.length = ValArray(Bits(32), cacheSize, self)
         self.sram = SRAM(32, 16384, init_file)
         self.l = RegArray(Bits(32), 1)
         self.r = RegArray(Bits(32), 1)
         self.bubble = ValArray(Bits(1), 1, self)
 
-    def push(self, value, pc):
+    def push(self, value, pc, length):
         (self.r & self)[0] <= (self.r[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
         self.cachePool[self.r[0]] = value
         self.instPC[self.r[0]] = pc
+        self.length[self.r[0]] = length
 
     def clear(self, pos):
-        self.cachePool[pos] <= Bits(32)(0)
+        self.cachePool[pos] = Bits(32)(0)
         self.instPC[pos] = Bits(32)(0)
+        self.length[pos] = Bits(32)(0)
 
     def pop(self):
         (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
@@ -49,24 +60,15 @@ class ICache(Module):
         # combinational logic for pc_cache & re
         re_combinational = start & (~flush) & (~self.full()) & (~self.bubble[0])
         curInst = parseInst(self.sram.dout[0])
-        pc_cache_combinational = pc_cache[0]
-        pc_cache_combinational = (re[0] & (curInst.type == Bits(32)(7))).select(
-            pc_cache[0] + (curInst.imm.bitcast(Int(32)) >> Int(32)(2)),
-            pc_cache_combinational
-        )
-        pc_cache_combinational = (re[0] & (curInst.type == Bits(32)(5))).select(
-            predictor(pc_cache[0] + (curInst.imm.bitcast(Int(32)) >> Bits(32)(2)), pc_cache[0] + Bits(32)(1))[1],
-            pc_cache_combinational
-        )
-        pc_cache_combinational = (re[0] & (curInst.type != Bits(32)(5)) & (curInst.type != Bits(32)(7))
-              & (curInst.id != Bits(32)(35))).select(pc_cache[0] + Bits(32)(1), pc_cache_combinational)
+        pc_cache_combinational = movePC(pc_cache[0], curInst, re[0], 4)
+
         with Condition(re[0] & ((curInst.id == Bits(32)(35)) | (self.sram.dout[0] == Bits(32)(0xfe000fa3)))):
             self.bubble[0] = Bits(1)(1)
         with Condition(re[0] & (self.sram.dout[0] != Bits(32)(0)) & \
                        (self.sram.dout[0] != Bits(32)(0xfe000fa3)) & (~flush)):
-            self.push(self.sram.dout[0], pc_cache[0])
+            self.push(self.sram.dout[0], pc_cache[0], Bits(32)(4))
 
-        self.sram.build(Bits(1)(0), re_combinational, pc_cache_combinational, Bits(32)(0))
+        self.sram.build(Bits(1)(0), re_combinational, pc_cache_combinational >> Bits(32)(2), Bits(32)(0))
         with Condition(~flush):
             pc_cache[0] = pc_cache_combinational
         re[0] = re_combinational
@@ -100,6 +102,7 @@ class ICache(Module):
                 with Condition(valid):
                     inst = self.cachePool[self.l[0]]
                     pc = self.instPC[self.l[0]]
+                    length = self.length[self.l[0]]
                     self.pop()
                     (robId & self)[0] <= robId[0] + Bits(32)(1)
 
@@ -123,14 +126,14 @@ class ICache(Module):
                     rob.rd.push(res.rd)
                     rob.newId.push(robId[0])
                     rob.val.push(res.id.case({
-                        Bits(32)(34): (pc << Bits(32)(2)) + Bits(32)(4),
-                        Bits(32)(35): (pc << Bits(32)(2)) + Bits(32)(4),
-                        Bits(32)(36): (pc << Bits(32)(2)) + res.imm,
+                        Bits(32)(34): pc + Bits(32)(4),
+                        Bits(32)(35): pc + Bits(32)(4),
+                        Bits(32)(36): pc + res.imm,
                         Bits(32)(37): res.imm,
                         None: Bits(32)(0)
                     }))
                     # (branch prediction)
-                    branch, _, otherPC = predictor(pc + (res.imm.bitcast(Int(32)) >> Bits(32)(2)), pc + Bits(32)(1))
+                    branch, _, otherPC = predictor(pc + res.imm.bitcast(Int(32)), pc + length)
                     rob.expectV.push((res.type == Bits(32)(5)).select(branch.zext(Bits(32)), Bits(32)(0)))
                     rob.otherPC.push((res.type == Bits(32)(5)).select(otherPC, Bits(32)(0)))
 
