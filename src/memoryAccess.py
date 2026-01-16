@@ -33,16 +33,39 @@ class ICache(Module):
         (self.l & self)[0] <= (self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize)
         self.clear(self.l[0])
 
+    def full(self):
+        return ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0]) & \
+            ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0])
+
     @module.combinational
     def build(self, rs, rob, lsb):
-        pc_cache = RegArray(Bits(32), 1)
         robId = RegArray(Bits(32), 1, [1])
         start = self.start.peek()
-        lastInst = RegArray(Bits(32), 1)
-
         flush = self.flushTag.valid()
-        re = start & (~flush) & ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0])
-        self.sram.build(Bits(1)(0), re, pc_cache[0], Bits(32)(0))
+
+        re = ValArray(Bits(32), 1, self)
+        pc_cache = ValArray(Bits(32), 1, self)
+
+        # combinational logic for pc_cache & re
+        re_combinational = start & (~flush) & (~self.full()) & (~self.bubble[0])
+        curInst = parseInst(self.sram.dout[0])
+        pc_cache_combinational = pc_cache[0]
+        pc_cache_combinational = (re[0] & (curInst.type == Bits(32)(7))).select(
+            pc_cache[0] + (curInst.imm.bitcast(Int(32)) >> Int(32)(2)),
+            pc_cache_combinational
+        )
+        pc_cache_combinational = (re[0] & (curInst.type == Bits(32)(5))).select(
+            predictor(pc_cache[0] + (curInst.imm.bitcast(Int(32)) >> Bits(32)(2)), pc_cache[0] + Bits(32)(1))[1],
+            pc_cache_combinational
+        )
+        pc_cache_combinational = (re[0] & (curInst.type != Bits(32)(5)) & (curInst.type != Bits(32)(7))
+              & (curInst.id != Bits(32)(35))).select(pc_cache[0] + Bits(32)(1), pc_cache_combinational)
+        with Condition(re[0] & (curInst.id == Bits(32)(35))):
+            self.bubble[0] = Bits(1)(1)
+
+        self.sram.build(Bits(1)(0), re_combinational, pc_cache_combinational, Bits(32)(0))
+        pc_cache[0] = pc_cache_combinational
+        re[0] = re_combinational
 
         with (Condition(start)):
             # flush
@@ -51,8 +74,7 @@ class ICache(Module):
                 newPC = self.newPC.pop()
                 newId = self.newId.pop()
 
-                (pc_cache & self)[0] <= newPC
-                (lastInst & self)[0] <= self.sram.dout[0]
+                pc_cache[0] = newPC
                 (robId & self)[0] <= newId + Bits(32)(1)
 
                 (self.l & self)[0] <= Bits(32)(0)
@@ -73,31 +95,7 @@ class ICache(Module):
                 valid_rob = rob.l[0] != (rob.r[0] + Bits(32)(1)) % Bits(32)(rob.robSize)
                 valid_self = self.l[0] != self.r[0]
                 valid = valid_rs & valid_lsb & valid_rob & valid_self
-                # log("{} {} {} {}", valid_rs, valid_lsb, valid_rob, valid_self)
 
-                # read from sram
-                hasValue = (self.sram.dout[0] != Bits(32)(0)) & (self.sram.dout[0] != lastInst[0]) & \
-                           ((self.l[0] + Bits(32)(1)) % Bits(32)(self.cacheSize) != self.r[0]) & (~self.bubble[0])
-                with Condition(hasValue):
-                    self.push(self.sram.dout[0], pc_cache[0])
-
-                with Condition(self.sram.dout[0] != Bits(32)(0)):
-                    (lastInst & self)[0] <= self.sram.dout[0]
-
-                with Condition(hasValue):
-                    curInst = parseInst(self.sram.dout[0])
-                    # jal
-                    with Condition(curInst.type == Bits(32)(7)):
-                        movement = curInst.imm.bitcast(Int(32)) >> Int(32)(2)
-                        (pc_cache & self)[0] <= pc_cache[0] + movement
-                    # jalr
-                    with Condition(curInst.id == Bits(32)(35)):
-                        self.bubble[0] = Bits(1)(1)
-                    with Condition(curInst.type == Bits(32)(5)):
-                        movement = curInst.imm.bitcast(Int(32)) >> Bits(32)(2)
-                        (pc_cache & self)[0] <= predictor(pc_cache[0] + movement, pc_cache[0] + Bits(32)(1))[1]
-                    with Condition((curInst.type != Bits(32)(5)) & (curInst.type != Bits(32)(7)) & (curInst.id != Bits(32)(35))):
-                        (pc_cache & self)[0] <= pc_cache[0] + Bits(32)(1)
                 # issue
                 with Condition(valid):
                     inst = self.cachePool[self.l[0]]
