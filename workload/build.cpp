@@ -56,9 +56,11 @@ inline string insName(const OP ins)
     static const string res[]={"","add","sub","and","or","xor","sll","srl","sra","slt","sltu",
     "addi","andi","ori","xori","slli","srli","srai","slti","sltiu","lb","lbu","lh","lhu",
     "lw","sb","sh","sw","beq","bge","bgeu","blt","bltu","bne","jal","jalr","auipc",
-    "lui","ebreak","ecall"};
+    "lui","ebreak","ecall","c.addi","c.li","c.lui","c.mv","c.add","c.lw","c.sw","c.j",
+    "c.jal","c.beqz","c.bnez","c.addi16sp","c.lwsp","c.swsp","c.nop","c.ebreak","c.addi4spn","c.slli","c.srli",
+    "c.srai","c.andi","c.sub","c.xor","c.or","c.and","c.jr","c.jalr"};
     const auto id=static_cast<int>(ins);
-    if(id<0||id>=40)
+    if(id<0||id>=67)
         return "ukIns-"+to_string(id);
     return res[id];
 }
@@ -143,9 +145,27 @@ inline string binarize(const unsigned int ins)
         res.push_back('0'+((ins>>i)&1));
     return res;
 }
-
+struct rule
+{
+    unsigned int num;
+    int l,r,L,R;
+    rule(unsigned int a,int b,int c,int d,int e):num(a),l(b),r(c),L(d),R(e){}
+    rule(unsigned int a,int b,int c):num(a),l(0),r(32),L(b),R(c){}
+};
+inline unsigned int mergeBit(vector<rule> rules)
+{
+    unsigned ans=0;
+    for(auto [num,l,r,L,R]:rules)
+        ans|=((num>>l)&((1u<<(r-l+1))-1))<<L;
+    return ans;
+}
+inline unsigned int sext(int val,int bit)
+{
+    return static_cast<unsigned int>(val<<(32-bit))>>(32-bit);
+}
 unsigned int coder(const instruction a)
 {
+    cout<<static_cast<int>(a.op)<<" "<<a.p0<<" "<<a.p1<<" "<<a.p2<<endl;
     const unsigned int op=static_cast<int>(a.op);
     if(op>=1&&op<=10)
     {
@@ -269,12 +289,254 @@ unsigned int coder(const instruction a)
         return 0b000000000000001110011;
     if(op==39)
         return 0b100000000000001110011;
+    if(op==40)
+        return mergeBit({
+            {0b01,0,1},
+            {sext(a.p1,6),0,4,2,6},
+            {a.p0,0,4,7,11},
+            {sext(a.p1,6),5,5,12,12},
+            {0b000,13,15}
+        });
+    if(op==41)
+        return mergeBit({
+            {0b01,0,1},
+            {sext(a.p1,6),0,4,2,6},
+            {a.p0,0,4,7,11},
+            {sext(a.p1,6),5,5,12,12},
+            {0b010,13,15}
+        });
+    if(op==42)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p1,0,4,2,6},
+            {a.p0,0,4,7,11},
+            {a.p1,5,5,12,12},
+            {0b011,13,15}
+        });
+    if(op==43)  
+        return mergeBit({
+            {0b10,0,1},
+            {a.p0,2,6},
+            {a.p1,7,11},
+            {0b1000,12,15}
+        });
+    if(op==44)
+        return mergeBit({
+            {0b10,0,1},
+            {a.p0,2,6},
+            {a.p1,7,11},
+            {0b1001,12,15}
+        });
+    if(op==45)
+        return mergeBit({
+            {0b00,0,1},
+            {a.p0,0,2,2,4},
+            {sext(a.p2,7),6,6,5,5},
+            {sext(a.p2,7),2,2,6,6},
+            {a.p1,0,2,7,9},
+            {sext(a.p2,7),3,5,10,12},
+            {0b010,13,15}
+        });
+    if(op==46)
+        return mergeBit({
+            {0b00,0,1},
+            {a.p2,0,2,2,4},
+            {sext(a.p0,7),6,6,5,5},
+            {sext(a.p0,7),2,2,6,6},
+            {a.p1,0,2,7,9},
+            {sext(a.p0,7),3,5,10,12},
+            {0b110,13,15}
+        });
+    if(op==47)
+    {
+        auto imm=sext(a.p0,12);
+        return mergeBit({
+            {0b01,0,1},
+            {imm,5,5,2,2},
+            {imm,1,3,3,5},
+            {imm,7,7,6,6},
+            {imm,6,6,7,7},
+            {imm,10,10,8,8},
+            {imm,8,9,9,10},
+            {imm,4,4,11,11},
+            {imm,11,11,12,12},
+            {0b101,13,15}
+        });
+    }
+    if(op==48)
+    {
+        auto imm=sext(a.p0,12);
+        return mergeBit({
+            {0b01,0,1},
+            {imm,5,5,2,2},
+            {imm,1,3,3,5},
+            {imm,7,7,6,6},
+            {imm,6,6,7,7},
+            {imm,10,10,8,8},
+            {imm,8,9,9,10},
+            {imm,4,4,11,11},
+            {imm,11,11,12,12},
+            {0b001,13,15}
+        });
+    }
+    if(op==49)
+    {
+        auto imm=sext(a.p2,9);
+        return mergeBit({
+            {0b01,0,1},
+            {imm,5,5,2,2},
+            {imm,1,2,3,4},
+            {imm,6,7,5,6},
+            {a.p1,0,2,7,9},
+            {imm,3,4,10,11},
+            {imm,8,8,12,12},
+            {0b110,13,15}
+        });
+    }
+    if(op==50)
+    {
+        auto imm=sext(a.p2,9);
+        return mergeBit({
+            {0b01,0,1},
+            {imm,5,5,2,2},
+            {imm,1,2,3,4},
+            {imm,6,7,5,6},
+            {a.p1,0,2,7,9},
+            {imm,3,4,10,11},
+            {imm,8,8,12,12},
+            {0b111,13,15},
+        });
+    }
+    if(op==51)
+    {
+        auto imm=sext(a.p0,10);
+        return mergeBit({
+            {0b01,0,1},
+            {imm,5,5,2,2},
+            {imm,7,8,3,4},
+            {imm,6,6,5,5},
+            {imm,4,4,6,6},
+            {0b00010,7,11},
+            {imm,9,9,12,12},
+            {0b011,13,15}
+        });
+    }
+    if(op==52)
+        return mergeBit({
+            {0b10,0,1},
+            {a.p1,6,7,2,3},
+            {a.p1,2,4,4,6},
+            {a.p0,0,4,7,11},
+            {a.p1,5,5,12,12},
+            {0b010,13,15}
+        });
+    if(op==53)
+        return mergeBit({
+            {0b10,0,1},
+            {a.p2,0,4,2,6},
+            {a.p1,6,7,7,8},
+            {a.p1,2,5,9,12},
+            {0b110,13,15}
+        });
+    if(op==54)
+        return 0b0000000000000001;
+    if(op==55)
+        return 0b1001000000000010;
+    if(op==56)
+        return mergeBit({
+            {0b00,0,1},
+            {a.p0,0,2,2,4},
+            {a.p1,3,3,5,5},
+            {a.p1,2,2,6,6},
+            {a.p1,6,9,7,10},
+            {a.p1,4,5,11,12},
+            {0b000,13,15}
+        });
+    if(op==57)
+        return mergeBit({
+            {0b10,0,1},
+            {a.p1,0,4,2,6},
+            {a.p0,0,4,7,11},
+            {a.p1,5,5,12,12},
+            {0b000,13,15}
+        });
+    if(op==58)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p1,0,4,2,6},
+            {a.p0,0,2,7,9},
+            {0b00,10,11},
+            {a.p1,5,5,12,12},
+            {0b100,13,15}
+        });
+    if(op==59)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p1,0,4,2,6},
+            {a.p0,0,2,7,9},
+            {0b01,10,11},
+            {a.p1,5,5,12,12},
+            {0b100,13,15}
+        });
+    if(op==60)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p1,0,4,2,6},
+            {a.p0,0,2,7,9},
+            {0b10,10,11},
+            {a.p1,5,5,12,12},
+            {0b100,13,15}
+        });
+    if(op==61)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p2,0,2,2,4},
+            {0b00,5,6},
+            {a.p0,0,2,7,9},
+            {0b100011,10,15}
+        });
+    if(op==62)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p2,0,2,2,4},
+            {0b01,5,6},
+            {a.p0,0,2,7,9},
+            {0b100011,10,15}
+        });
+    if(op==63)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p2,0,2,2,4},
+            {0b10,5,6},
+            {a.p0,0,2,7,9},
+            {0b100011,10,15}
+        });
+    if(op==64)
+        return mergeBit({
+            {0b01,0,1},
+            {a.p2,0,2,2,4},
+            {0b11,5,6},
+            {a.p0,0,2,7,9},
+            {0b100011,10,15}
+        });
+    if(op==65)
+        return mergeBit({
+            {0b0000010,0,6},
+            {a.p1,0,4,7,11},
+            {0b1000,12,15}
+        });
+    if(op==66)
+        return mergeBit({
+            {0b0000010,0,6},
+            {a.p1,0,4,7,11},
+            {0b1001,12,15}
+        });
     return 0;
 }
 
 bool isValidChar(char op)
 {
-    return (op>='a'&&op<='z')||(op>='0'&&op<='9')||(op=='-');
+    return (op>='a'&&op<='z')||(op>='0'&&op<='9')||(op=='-')||(op=='.');
 }
 
 inline string tokenTaker(string& a)
@@ -306,11 +568,13 @@ inline int insID(const string& insName)
     static const string res[]={"","add","sub","and","or","xor","sll","srl","sra","slt","sltu",
     "addi","andi","ori","xori","slli","srli","srai","slti","sltiu","lb","lbu","lh","lhu",
     "lw","sb","sh","sw","beq","bge","bgeu","blt","bltu","bne","jal","jalr","auipc",
-    "lui","ebreak","ecall"};
-    for(int i=0;i<40;i++)
+    "lui","ebreak","ecall","c.addi","c.li","c.lui","c.mv","c.add","c.lw","c.sw","c.j",
+    "c.jal","c.beqz","c.bnez","c.addi16sp","c.lwsp","c.swsp","c.nop","c.ebreak","c.addi4spn","c.slli","c.srli",
+    "c.srai","c.andi","c.sub","c.xor","c.or","c.and","c.jr","c.jalr"};
+    for(int i=0;i<67;i++)
         if(res[i]==insName)
             return i;
-    return 40;
+    return 67;
 }
 
 inline instruction strToInstruction(string str)
@@ -348,7 +612,7 @@ inline instruction strToInstruction(string str)
             return {static_cast<OP>(35), 0,1,0};
     }
     int op=insID(OP_s);
-    if(op<0||op>=40)
+    if(op<0||op>=67)
         return {static_cast<OP>(0),0,0,0};
     if(op<=10)
         return {static_cast<OP>(op),regID(s1),regID(s2),regID(s3)};
@@ -366,32 +630,51 @@ inline instruction strToInstruction(string str)
         return {static_cast<OP>(op),regID(s1),regID(s2),stoi(s3)};
     if(op<=37)
         return {static_cast<OP>(op),regID(s1),stoi(s2),0};
+    if(op<=39)
+        return {static_cast<OP>(op),0,0,0};
+    if(op<=42)
+        return {static_cast<OP>(op),regID(s1),stoi(s2),0};
+    if(op<=44)
+        return {static_cast<OP>(op),regID(s1),0,regID(s2)};
+    if(op<=45)
+        return {static_cast<OP>(op),regID(s1),regID(s3),stoi(s2)};
+    if(op<=46)
+        return {static_cast<OP>(op),stoi(s2),regID(s3),regID(s1)};
+    if(op<=48)
+        return {static_cast<OP>(op),stoi(s1),0,0};
+    if(op<=50)
+        return {static_cast<OP>(op),0,regID(s1),stoi(s2)};
+    if(op<=51)
+        return {static_cast<OP>(op),stoi(s1),0,0};
+    if(op<=52)
+        return {static_cast<OP>(op),regID(s1),stoi(s2),0};
+    if(op<=53)
+        return {static_cast<OP>(op),0,stoi(s2),regID(s1)};
+    if(op<=55)
+        return {static_cast<OP>(op),0,0,0};
+    if(op<=60)
+        return {static_cast<OP>(op),regID(s1),stoi(s2),0};
+    if(op<=64)
+        return {static_cast<OP>(op),regID(s1),0,regID(s2)};
+    if(op<=66)
+        return {static_cast<OP>(op),0,regID(s1),0};
     return {static_cast<OP>(op),0,0,0};
 }
 
 std::vector<std::string> get_all_ins_files() {
     std::vector<std::string> ins_files;
-
 #ifdef _WIN32
-    // Windows 平台实现
     WIN32_FIND_DATA find_file_data;
     HANDLE hFind = FindFirstFile(_T("*.ins"), &find_file_data);
-
-    // 检查查找是否成功
     if (hFind == INVALID_HANDLE_VALUE) {
-        // 没有找到任何.ins文件时，GetLastError()会返回ERROR_FILE_NOT_FOUND
         DWORD error = GetLastError();
         if (error != ERROR_FILE_NOT_FOUND) {
             std::cerr << "查找.ins文件失败，错误码: " << error << std::endl;
         }
         return ins_files;
     }
-
-    // 遍历所有匹配的文件
     do {
-        // 排除目录（只保留文件）
         if (!(find_file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            // 将TCHAR转换为std::string
 #ifdef UNICODE
             char filename[MAX_PATH];
             WideCharToMultiByte(CP_ACP, 0, find_file_data.cFileName, -1,
@@ -402,43 +685,30 @@ std::vector<std::string> get_all_ins_files() {
 #endif
         }
     } while (FindNextFile(hFind, &find_file_data) != 0);
-
-    // 检查遍历结束的原因（是否是正常遍历完成）
     DWORD error = GetLastError();
     if (error != ERROR_NO_MORE_FILES) {
         std::cerr << "遍历.ins文件失败，错误码: " << error << std::endl;
     }
-
-    // 关闭查找句柄
     FindClose(hFind);
-
 #else
-    // Linux/macOS 平台实现
-    DIR* dir = opendir(".");  // 打开当前目录
+    DIR* dir = opendir(".");
     if (dir == nullptr) {
         std::cerr << "打开当前目录失败: " << strerror(errno) << std::endl;
         return ins_files;
     }
-
     struct dirent* entry;
-    // 遍历目录中的每个条目
     while ((entry = readdir(dir)) != nullptr) {
-        // 跳过目录（只处理文件）
         if (entry->d_type != DT_REG) {
             continue;
         }
-
-        // 获取文件名并检查后缀是否为.ins
         std::string filename = entry->d_name;
         size_t dot_pos = filename.find_last_of('.');
         if (dot_pos != std::string::npos && filename.substr(dot_pos) == ".ins") {
             ins_files.push_back(filename);
         }
     }
-
-    closedir(dir);  // 关闭目录
+    closedir(dir);
 #endif
-
     return ins_files;
 }
 
@@ -449,10 +719,30 @@ int main(int argc,char *argv[])
         ifstream ifs(argv[1]);
         ofstream ofs(argv[2]);
         string input;
-        string result;
+        vector<unsigned int> hex;
         while(getline(ifs,input))
         {
-            ofs<<hexize(coder(strToInstruction(input)))<<endl;
+            auto p=strToInstruction(input);
+            auto result=coder(strToInstruction(input));
+            if(static_cast<int>(p.op)<=39)
+            {
+                hex.push_back(result&255);result>>=8;
+                hex.push_back(result&255);result>>=8;
+                hex.push_back(result&255);result>>=8;
+                hex.push_back(result&255);result>>=8;
+            }
+            else
+            {
+                hex.push_back(result&255);result>>=8;
+                hex.push_back(result&255);result>>=8;
+            }
+        }
+        while(hex.size()%4)
+            hex.push_back(0);
+        for(int i=0;i<(int)hex.size();i+=4)
+        {
+            auto result=hex[i]|(hex[i+1]<<8)|(hex[i+2]<<16)|(hex[i+3]<<24);
+            ofs<<hexize(result)<<endl;
         }
 	}
 	else if(argc==1)
@@ -468,10 +758,30 @@ int main(int argc,char *argv[])
             ifstream ifs(str);
             ofstream ofs(str_data);
             string input;
-            string result;
+            vector<unsigned int> hex;
             while(getline(ifs,input))
             {
-                ofs<<hexize(coder(strToInstruction(input)))<<endl;
+                auto p=strToInstruction(input);
+                auto result=coder(strToInstruction(input));
+                if(static_cast<int>(p.op)<=39)
+                {
+                    hex.push_back(result&255);result>>=8;
+                    hex.push_back(result&255);result>>=8;
+                    hex.push_back(result&255);result>>=8;
+                    hex.push_back(result&255);result>>=8;
+                }
+                else
+                {
+                    hex.push_back(result&255);result>>=8;
+                    hex.push_back(result&255);result>>=8;
+                }
+            }
+            while(hex.size()%4)
+                hex.push_back(0);
+            for(int i=0;i<(int)hex.size();i+=4)
+            {
+                auto result=hex[i]|(hex[i+1]<<8)|(hex[i+2]<<16)|(hex[i+3]<<24);
+                ofs<<hexize(result)<<endl;
             }
         }
 	}
