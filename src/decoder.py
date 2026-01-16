@@ -374,7 +374,29 @@ def parseCswsp(inst: Bits):
     return Inst(Bits(32)(5), Bits(32)(27), Bits(32)(0), sp, rs2, imm)
 
 def parseCR(inst: Bits):
-    funct1 = takeBitsRange(inst, 12,  12)
+    funct5 = takeBitsRange(inst, 2,   6)
+    res = (funct5 == Bits(32)(0)).select(parseCJR(inst) , parseCADD(inst))
+    return res
+
+def parseCJR(inst: Bits):
+    funct1 = takeBitsRange(inst, 12, 12)
+    res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
+    res = res.checkCopy(funct1 == Bits(32)(0b0), parseCjr(inst))
+    res = res.checkCopy(funct1 == Bits(32)(0b1), parseCjalr(inst))
+    return res
+
+def parseCjr(inst: Bits):
+    zero = Bits(32)(0)
+    rs1 = takeBitsRange(inst, 7, 11)
+    return Inst(Bits(32)(2), Bits(32)(35), zero, rs1, Bits(32)(0), Bits(32)(0))
+
+def parseCjalr(inst: Bits):
+    ra = Bits(32)(1)
+    rs1 = takeBitsRange(inst, 7, 11)
+    return Inst(Bits(32)(2), Bits(32)(35), ra, rs1, Bits(32)(0), Bits(32)(0))
+
+def parseCADD(inst: Bits):
+    funct1 = takeBitsRange(inst, 12, 12)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
     res = res.checkCopy(funct1 == Bits(32)(0b0), parseCmv(inst))
     res = res.checkCopy(funct1 == Bits(32)(0b1), parseCadd(inst))
@@ -382,13 +404,13 @@ def parseCR(inst: Bits):
 
 def parseCmv(inst: Bits):
     zero = Bits(32)(0)
-    rd = takeBitsRange(inst, 2, 5)
-    rs2 = takeBitsRange(inst, 6, 9)
+    rd = takeBitsRange(inst, 2, 6)
+    rs2 = takeBitsRange(inst, 7, 11)
     return Inst(Bits(32)(1), Bits(32)(1), rd, zero, rs2, Bits(32)(0))
 
 def parseCadd(inst: Bits):
-    rd = takeBitsRange(inst, 2, 5)
-    rs2 = takeBitsRange(inst, 6, 9)
+    rd = takeBitsRange(inst, 2, 6)
+    rs2 = takeBitsRange(inst, 7, 11)
     return Inst(Bits(32)(1), Bits(32)(1), rd, rd, rs2, Bits(32)(0))
 
 def parseCslli(inst: Bits):
