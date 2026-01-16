@@ -150,13 +150,16 @@ struct rule
     unsigned int num;
     int l,r,L,R;
     rule(unsigned int a,int b,int c,int d,int e):num(a),l(b),r(c),L(d),R(e){}
-    rule(unsigned int a,int b,int c):num(a),l(0),r(32),L(b),R(c){}
+    rule(unsigned int a,int b,int c):num(a),l(0),r(31),L(b),R(c){}
 };
 inline unsigned int mergeBit(vector<rule> rules)
 {
     unsigned ans=0;
     for(auto [num,l,r,L,R]:rules)
-        ans|=((num>>l)&((1u<<(r-l+1))-1))<<L;
+        if(r-l+1==32)
+            ans|=(num<<L);
+        else
+            ans|=((num>>l)&((1u<<(r-l+1))-1u))<<L;
     return ans;
 }
 inline unsigned int sext(int val,int bit)
@@ -165,8 +168,7 @@ inline unsigned int sext(int val,int bit)
 }
 unsigned int coder(const instruction a)
 {
-    cout<<static_cast<int>(a.op)<<" "<<a.p0<<" "<<a.p1<<" "<<a.p2<<endl;
-    const unsigned int op=static_cast<int>(a.op);
+    const int op=static_cast<int>(a.op);
     if(op>=1&&op<=10)
     {
         const unsigned int p0=static_cast<unsigned int>(a.p0<<27)>>27,p1=static_cast<unsigned int>(a.p1<<27)>>27,
@@ -723,7 +725,7 @@ int main(int argc,char *argv[])
         while(getline(ifs,input))
         {
             auto p=strToInstruction(input);
-            auto result=coder(strToInstruction(input));
+            auto result=coder(p);
             if(static_cast<int>(p.op)<=39)
             {
                 hex.push_back(result&255);result>>=8;
