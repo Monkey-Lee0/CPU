@@ -7,15 +7,23 @@
       <w>cbnez</w>
       <w>cjal</w>
       <w>clwsp</w>
+      <w>cslli</w>
       <w>csrai</w>
       <w>csrli</w>
       <w>csub</w>
       <w>cswsp</w>
+      <w>divu</w>
       <w>funct</w>
       <w>hillo</w>
       <w>jalr</w>
+      <w>mulh</w>
+      <w>mulsu</w>
+      <w>mulu</w>
       <w>sbwj</w>
+      <w>slti</w>
+      <w>sltiu</w>
       <w>sltu</w>
+      <w>xori</w>
     </words>
   </dictionary>
 </component>
