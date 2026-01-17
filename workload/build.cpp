@@ -802,6 +802,5 @@ int main(int argc,char *argv[])
 	else
 		throw runtime_error("1 or 3 args expected");
 
-
     return 0;
 }
