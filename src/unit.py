@@ -40,6 +40,7 @@ def buildSys(testcase):
         rob.build(rf, iCache, rs, lsb, alu_arr)
         for i in range(8):
             alu_arr[i].build(rob)
+            alu_arr[i].name = f'ALUInstance{i}'
         agu.build(lsb)
         lsb.build(dCache, rob)
 

@@ -145,4 +145,4 @@ class ROB(Module):
             (flush & self)[0] <= Bits(1)(0)
 
         # rf.log()
-        self.log()
+        # self.log()

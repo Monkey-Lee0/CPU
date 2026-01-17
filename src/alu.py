@@ -1,3 +1,5 @@
+import contextlib
+
 from assassyn.frontend import *
 from rob import ROB
 from utils import popAllPorts, ValArray
@@ -12,11 +14,20 @@ class ALU(Module):
             'flushTag':Port(Bits(1))
         })
         self.busy = ValArray(Bits(1), 1, self)
+        self.instIdV = ValArray(Bits(32), 1, self)
+        self.lhsV = ValArray(Bits(32), 1, self)
+        self.rhsV = ValArray(Bits(32), 1, self)
+        self.robIdV = ValArray(Bits(32), 1, self)
+        self.status = ValArray(Bits(32), 1, self) # 1 - issue; 2 - calculating ; 3 - finish
+
     @module.combinational
     def build(self,rob:ROB):
         flush = self.flushTag.valid()
         with Condition(flush):
             popAllPorts(self)
+            self.clear()
+
+        # issue M inst or commit answer of easy inst to rob
         with Condition((~flush) & self.instId.valid()):
             instId = self.instId.pop()
             lhs = self.lhs.pop()
@@ -61,18 +72,44 @@ class ALU(Module):
                 Bits(32)(37): rhs << Bits(32)(12),
                 None: Bits(32)(0)
             })
+            # self.busy[0] = (instId > Bits(32)(37)).select(Bits(1)(1), self.busy[0])
+            # self.lhsV[0] = (instId > Bits(32)(37)).select(lhs, self.lhsV[0])
+            # self.rhsV[0] = (instId > Bits(32)(37)).select(rhs, self.rhsV[0])
+            # self.robIdV[0] = (instId > Bits(32)(37)).select(robId, self.robIdV[0])
+            # self.instIdV[0] = (instId > Bits(32)(37)).select(instId, self.instIdV[0])
+            # self.status[0] = (instId > Bits(32)(37)).select(Bits(32)(1), self.status[0])
 
-            # modify in rob
-            for i in range(rob.robSize):
-                with Condition(rob.ID[i] == robId):
-                    rob.busy[i] = Bits(1)(0)
-                    with Condition(rob.inst[i] == Bits(32)(35)):
-                        rob.anotherPC[i] = res
-                    with Condition(rob.inst[i] != Bits(32)(35)):
-                        rob.value[i] = res
+            # directly modify in rob
+            with Condition(Bits(32)(37) >= instId):
+                for i in range(rob.robSize):
+                    with Condition(rob.ID[i] == robId):
+                        rob.busy[i] = Bits(1)(0)
+                        with Condition(rob.inst[i] == Bits(32)(35)):
+                            rob.anotherPC[i] = res
+                        with Condition(rob.inst[i] != Bits(32)(35)):
+                            rob.value[i] = res
+
+        # with Condition((~flush) & (self.status[0] == Bits(32)(1))):
+        #     self.status[0] = Bits(32)(2)
+        #
+        # with Condition((~flush) & (self.status[0] == Bits(32)(2))):
+        #     for i in range(rob.robSize):
+        #         with Condition(rob.ID[i] == robId):
+        #             rob.busy[i] = Bits(1)(0)
+        #             with Condition((rob.inst[i] > Bits(32)(37)) & (rob.inst[i] < Bits(32)(42))):
+        #                 self.clear()
+
+
 
             log("{}: {} {} {} = {}", robId, lhs, instId, rhs, res)
-
+    def clear(self):
+        self.busy = Bits(1)(0)
+        self.instIdV = Bits(32)(0)
+        self.lhsV = Bits(32)(0)
+        self.rhsV = Bits(32)(0)
+        self.robIdV = Bits(32)(0)
+        self.status = Bits(32)(0)
+        # clear是否要把tag归零?
 
 class AGU(Module):
     def __init__(self):

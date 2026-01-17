@@ -134,41 +134,39 @@ class RS(Module):
                 canExecute = self.busy[i] & (self.qj[i] == Bits(32)(0)) & (self.qk[i] == Bits(32)(0)) & (
                         (instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3)) | (instType == Bits(32)(5))) & (
                         (Bits(32)(19) >= self.inst[i]) | (self.inst[i] >= Bits(32)(28)))
-                with Condition(canExecute):
-                    hasForward = Bits(1)(0)
-                    for j in range(8):
-                        with Condition(~alu_arr[k].busy[0]):
-                            count = Bits(32)(0)
-                            for k in range(j):
-                                count = count + (~alu_arr[k].busy[0])
-                            with Condition((~hasForward) & (count == totalPrevious)):
-                                # type R
-                                with Condition(instType == Bits(32)(1)):
-                                    alu_arr[j].instId.push(self.inst[i])
-                                    alu_arr[j].lhs.push(self.vj[i])
-                                    alu_arr[j].rhs.push(self.vk[i])
-                                    alu_arr[j].robId.push(self.dest[i])
-                                # type I/I*
-                                with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
-                                    alu_arr[j].instId.push(self.inst[i])
-                                    alu_arr[j].lhs.push(self.vj[i])
-                                    alu_arr[j].rhs.push(self.A[i])
-                                    alu_arr[j].robId.push(self.dest[i])
-                                # type B
-                                with Condition(instType == Bits(32)(5)):
-                                    alu_arr[j].instId.push(self.inst[i])
-                                    alu_arr[j].lhs.push(self.vj[i])
-                                    alu_arr[j].rhs.push(self.vk[i])
-                                    alu_arr[j].robId.push(self.dest[i])
-                                # type U (auipc/lui rd label)
-                                with Condition(instType == Bits(32)(6)):
-                                    alu_arr[j].instId.push(self.inst[i])
-                                    alu_arr[j].lhs.push(self.vj[i])
-                                    alu_arr[j].rhs.push(self.vk[i])
-                                    alu_arr[j].robId.push(self.dest[i])
-                                self.clear(i)
-                        hasForward = hasForward | ((count == totalPrevious) & (~alu_arr[j].busy[0]))
-                    totalPrevious = totalPrevious + hasForward.bitcast(Bits(32))
+                hasForward = Bits(1)(0)
+                for j in range(8):
+                    count = Bits(32)(0)
+                    for k in range(j):
+                        count = count + (~alu_arr[k].busy[0])
+                    with Condition(canExecute & (~alu_arr[j].busy[0]) & (~hasForward) & (count == totalPrevious)):
+                        # type R
+                        with Condition(instType == Bits(32)(1)):
+                            alu_arr[j].instId.push(self.inst[i])
+                            alu_arr[j].lhs.push(self.vj[i])
+                            alu_arr[j].rhs.push(self.vk[i])
+                            alu_arr[j].robId.push(self.dest[i])
+                        # type I/I*
+                        with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
+                            alu_arr[j].instId.push(self.inst[i])
+                            alu_arr[j].lhs.push(self.vj[i])
+                            alu_arr[j].rhs.push(self.A[i])
+                            alu_arr[j].robId.push(self.dest[i])
+                        # type B
+                        with Condition(instType == Bits(32)(5)):
+                            alu_arr[j].instId.push(self.inst[i])
+                            alu_arr[j].lhs.push(self.vj[i])
+                            alu_arr[j].rhs.push(self.vk[i])
+                            alu_arr[j].robId.push(self.dest[i])
+                        # type U (auipc/lui rd label)
+                        with Condition(instType == Bits(32)(6)):
+                            alu_arr[j].instId.push(self.inst[i])
+                            alu_arr[j].lhs.push(self.vj[i])
+                            alu_arr[j].rhs.push(self.vk[i])
+                            alu_arr[j].robId.push(self.dest[i])
+                        self.clear(i)
+                    hasForward = hasForward | ((count == totalPrevious) & (~alu_arr[j].busy[0]) & canExecute)
+                totalPrevious = totalPrevious + hasForward.bitcast(Bits(32))
 
             # forward into agu & lsb
             tag = Bits(1)(1)
@@ -184,7 +182,8 @@ class RS(Module):
                     self.clear(i)
                 tag = tag & (~canExecute)
 
-        alu.async_called()
+        for i in range(8):
+            alu_arr[i].async_called()
         agu.async_called()
         # self.log()
 
