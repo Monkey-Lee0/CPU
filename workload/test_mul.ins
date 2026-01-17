@@ -1,0 +1,45 @@
+li a0 11000
+li a1 22200
+li a2 34100
+addi a1 a1 -40000
+mul a3 a0 a1
+mul a4 a0 a2
+mul a5 a1 a2
+mul a6 a2 a0
+mul a7 a2 a1
+add tp tp a3
+add tp tp a4
+add tp tp a5
+add tp tp a6
+add tp tp a7
+mulh a3 a0 a1
+mulh a4 a0 a2
+mulh a5 a1 a2
+mulh a6 a2 a0
+mulh a7 a2 a1
+add tp tp a3
+add tp tp a4
+add tp tp a5
+add tp tp a6
+add tp tp a7
+mulsu a3 a0 a1
+mulsu a4 a0 a2
+mulsu a5 a1 a2
+mulsu a6 a2 a0
+mulsu a7 a2 a1
+add tp tp a3
+add tp tp a4
+add tp tp a5
+add tp tp a6
+add tp tp a7
+mulhu a3 a0 a1
+mulhu a4 a0 a2
+mulhu a5 a1 a2
+mulhu a6 a2 a0
+mulhu a7 a2 a1
+add tp tp a3
+add tp tp a4
+add tp tp a5
+add tp tp a6
+add tp tp a7
+sb x0 -1(x0)

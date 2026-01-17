@@ -1,0 +1,16 @@
+c.addi a1 5
+addi a1 a1 5
+c.li a1 5
+c.lui a2 1
+mul t0 a1 a2
+mulu t1 t0 a2
+c.addi4spn a0 16
+c.slli a0 4
+c.srli a0 2
+mulsu a2 a0 a1
+c.xor a1 a0
+c.or a1 a0
+div a2 a1 a0
+c.and a0 a1
+remu a2 a0 a1
+sb x0 -1(x0)

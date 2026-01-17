@@ -153,7 +153,7 @@ InstName = [
     'mul', # 38
     'mulh', # 39
     'mulsu', # 40
-    'mulu', # 41
+    'mulh u', # 41
     'div', # 42
     'divu', # 43
     'rem', # 44
