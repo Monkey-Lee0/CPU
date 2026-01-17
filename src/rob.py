@@ -126,7 +126,6 @@ class ROB(Module):
                     rs.flushTag.push(Bits(1)(1))
                     ic.flushTag.push(Bits(1)(1))
                     ic.newPC.push(self.anotherPC[self.l[0]])
-                    log("fuck {}", self.anotherPC[self.l[0]])
                     ic.newId.push(self.ID[self.l[0]])
                     lsb.flushTag.push(Bits(1)(1))
                     lsb.flushId.push(self.ID[self.l[0]])

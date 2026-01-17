@@ -27,7 +27,7 @@ class ICache(Module):
         self.cachePool = ValArray(Bits(32), cacheSize, self)
         self.instPC = ValArray(Bits(32), cacheSize, self)
         self.length = ValArray(Bits(32), cacheSize, self)
-        self.sram = SRAM(32, 16384, init_file)
+        self.sram = SRAM(32, 1<<16, init_file)
         self.l = RegArray(Bits(32), 1)
         self.r = RegArray(Bits(32), 1)
         self.bubble = ValArray(Bits(1), 1, self)
@@ -187,7 +187,7 @@ class DCache(Module):
             'newType':Port(Bits(1)) # sb-25 ; sh-26 ; sw-27
         })
         self.cacheSize = cacheSize
-        self.sram = SRAM(32, 16384, init_file)
+        self.sram = SRAM(32, 1<<16, init_file)
         self.itemAddr = ValArray(Bits(32), cacheSize, self)
         self.itemValue = ValArray(Bits(32), cacheSize, self)
         self.itemStatus = ValArray(Bits(1), cacheSize, self) # 0-request not sent; 1-value prepared
