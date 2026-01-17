@@ -58,9 +58,10 @@ inline string insName(const OP ins)
     "lw","sb","sh","sw","beq","bge","bgeu","blt","bltu","bne","jal","jalr","auipc",
     "lui","ebreak","ecall","c.addi","c.li","c.lui","c.mv","c.add","c.lw","c.sw","c.j",
     "c.jal","c.beqz","c.bnez","c.addi16sp","c.lwsp","c.swsp","c.nop","c.ebreak","c.addi4spn","c.slli","c.srli",
-    "c.srai","c.andi","c.sub","c.xor","c.or","c.and","c.jr","c.jalr"};
+    "c.srai","c.andi","c.sub","c.xor","c.or","c.and","c.jr","c.jalr","mul","mulh","mulhsu","mulhu","div","divu",
+    "rem","remu"};
     const auto id=static_cast<int>(ins);
-    if(id<0||id>=67)
+    if(id<0||id>=75)
         return "ukIns-"+to_string(id);
     return res[id];
 }
@@ -533,6 +534,34 @@ unsigned int coder(const instruction a)
             {a.p1,0,4,7,11},
             {0b1001,12,15}
         });
+    if(op<=74)
+    {
+        int funct3=0;
+        if(op==67)
+            funct3=0b000;
+        if(op==68)
+            funct3=0b001;
+        if(op==69)
+            funct3=0b010;
+        if(op==70)
+            funct3=0b011;
+        if(op==71)
+            funct3=0b100;
+        if(op==72)
+            funct3=0b101;
+        if(op==73)
+            funct3=0b110;
+        if(op==74)
+            funct3=0b111;
+        return mergeBit({
+            {0b0110011,0,6},
+            {a.p0,0,4,7,11},
+            {funct3,0,2,12,14},
+            {a.p1,0,4,15,19},
+            {a.p2,0,4,20,24},
+            {0b0000001,25,31}
+        });
+    }
     return 0;
 }
 
@@ -572,11 +601,12 @@ inline int insID(const string& insName)
     "lw","sb","sh","sw","beq","bge","bgeu","blt","bltu","bne","jal","jalr","auipc",
     "lui","ebreak","ecall","c.addi","c.li","c.lui","c.mv","c.add","c.lw","c.sw","c.j",
     "c.jal","c.beqz","c.bnez","c.addi16sp","c.lwsp","c.swsp","c.nop","c.ebreak","c.addi4spn","c.slli","c.srli",
-    "c.srai","c.andi","c.sub","c.xor","c.or","c.and","c.jr","c.jalr"};
-    for(int i=0;i<67;i++)
+    "c.srai","c.andi","c.sub","c.xor","c.or","c.and","c.jr","c.jalr","mul","mulh","mulhsu","mulhu","div","divu",
+    "rem","remu"};
+    for(int i=0;i<75;i++)
         if(res[i]==insName)
             return i;
-    return 67;
+    return 75;
 }
 
 inline instruction strToInstruction(string str)
@@ -614,7 +644,7 @@ inline instruction strToInstruction(string str)
             return {static_cast<OP>(35), 0,1,0};
     }
     int op=insID(OP_s);
-    if(op<0||op>=67)
+    if(op<0||op>=75)
         return {static_cast<OP>(0),0,0,0};
     if(op<=10)
         return {static_cast<OP>(op),regID(s1),regID(s2),regID(s3)};
@@ -660,6 +690,8 @@ inline instruction strToInstruction(string str)
         return {static_cast<OP>(op),regID(s1),0,regID(s2)};
     if(op<=66)
         return {static_cast<OP>(op),0,regID(s1),0};
+    if(op<=74)
+        return {static_cast<OP>(op),regID(s1),regID(s2),regID(s3)};
     return {static_cast<OP>(op),0,0,0};
 }
 
@@ -714,38 +746,43 @@ std::vector<std::string> get_all_ins_files() {
     return ins_files;
 }
 
+void solve_single(ifstream &ifs,ofstream &ofs)
+{
+    string input;
+    vector<unsigned int> hex;
+    while(getline(ifs,input))
+    {
+        auto p=strToInstruction(input);
+        auto result=coder(p);
+            if(static_cast<int>(p.op)<=39||static_cast<int>(p.op)>=67)
+        {
+            hex.push_back(result&255);result>>=8;
+            hex.push_back(result&255);result>>=8;
+            hex.push_back(result&255);result>>=8;
+            hex.push_back(result&255);result>>=8;
+        }
+        else
+        {
+            hex.push_back(result&255);result>>=8;
+            hex.push_back(result&255);result>>=8;
+        }
+    }
+    while(hex.size()%4)
+        hex.push_back(0);
+    for(int i=0;i<(int)hex.size();i+=4)
+    {
+        auto result=hex[i]|(hex[i+1]<<8)|(hex[i+2]<<16)|(hex[i+3]<<24);
+        ofs<<hexize(result)<<endl;
+    }
+}
+
 int main(int argc,char *argv[])
 {
 	if(argc==3)
 	{
         ifstream ifs(argv[1]);
         ofstream ofs(argv[2]);
-        string input;
-        vector<unsigned int> hex;
-        while(getline(ifs,input))
-        {
-            auto p=strToInstruction(input);
-            auto result=coder(p);
-            if(static_cast<int>(p.op)<=39)
-            {
-                hex.push_back(result&255);result>>=8;
-                hex.push_back(result&255);result>>=8;
-                hex.push_back(result&255);result>>=8;
-                hex.push_back(result&255);result>>=8;
-            }
-            else
-            {
-                hex.push_back(result&255);result>>=8;
-                hex.push_back(result&255);result>>=8;
-            }
-        }
-        while(hex.size()%4)
-            hex.push_back(0);
-        for(int i=0;i<(int)hex.size();i+=4)
-        {
-            auto result=hex[i]|(hex[i+1]<<8)|(hex[i+2]<<16)|(hex[i+3]<<24);
-            ofs<<hexize(result)<<endl;
-        }
+        solve_single(ifs,ofs);
 	}
 	else if(argc==1)
 	{
@@ -759,32 +796,7 @@ int main(int argc,char *argv[])
             str_data+="data";
             ifstream ifs(str);
             ofstream ofs(str_data);
-            string input;
-            vector<unsigned int> hex;
-            while(getline(ifs,input))
-            {
-                auto p=strToInstruction(input);
-                auto result=coder(strToInstruction(input));
-                if(static_cast<int>(p.op)<=39)
-                {
-                    hex.push_back(result&255);result>>=8;
-                    hex.push_back(result&255);result>>=8;
-                    hex.push_back(result&255);result>>=8;
-                    hex.push_back(result&255);result>>=8;
-                }
-                else
-                {
-                    hex.push_back(result&255);result>>=8;
-                    hex.push_back(result&255);result>>=8;
-                }
-            }
-            while(hex.size()%4)
-                hex.push_back(0);
-            for(int i=0;i<(int)hex.size();i+=4)
-            {
-                auto result=hex[i]|(hex[i+1]<<8)|(hex[i+2]<<16)|(hex[i+3]<<24);
-                ofs<<hexize(result)<<endl;
-            }
+            solve_single(ifs,ofs);
         }
 	}
 	else
