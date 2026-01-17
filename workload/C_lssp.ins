@@ -1,0 +1,16 @@
+li a0 0
+li sp 12
+li a1 0
+addi a0 a0 1
+addi a1 a1 4
+c.swsp a0 0(sp)
+sb a0 2(zero)
+blt a0 sp -12
+li a0 0
+li a1 0
+addi a0 a0 1
+addi a1 a1 4
+c.lwsp a2 0(sp)
+add t1 t1 a2
+blt a0 sp -16
+sb x0 -1(x0)
