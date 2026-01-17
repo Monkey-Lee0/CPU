@@ -166,6 +166,11 @@ class ICache(Module):
                     rob.expectV.push((res.type == Bits(32)(5)).select(branch.zext(Bits(32)), Bits(32)(0)))
                     rob.otherPC.push((res.type == Bits(32)(5)).select(otherPC, Bits(32)(0)))
 
+                    # issue into rf
+                    # with Condition((res.type == Bits(32)(1)) | (res.type == Bits(32)(2)) | (res.type == Bits(32)(3)) |
+                    #                (res.type == Bits(32)(6)) | (res.type == Bits(32)(7))):
+                    #     rf.buildDependence(res.rd, robId[0])
+
                     # issue into lsb
                     with Condition((res.id >= Bits(32)(20)) & (Bits(32)(27) >= res.id)):
                         lsb.newId_ic.push(robId[0])

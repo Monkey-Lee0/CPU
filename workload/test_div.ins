@@ -1,45 +1,26 @@
-li a0 11000
-li a1 222
-li a2 3410
-addi a1 a1 -400
+li a0 1100
+li a1 -178
+li a2 2047
 div a3 a0 a1
 div a4 a0 a2
 div a5 a1 a2
 div a6 a2 a0
 div a7 a2 a1
-add tp tp a3
-add tp tp a4
-add tp tp a5
-add tp tp a6
-add tp tp a7
+sub sp a1 a0
+div a8 sp a1
 divu a3 a0 a1
 divu a4 a0 a2
 divu a5 a1 a2
 divu a6 a2 a0
 divu a7 a2 a1
-add tp tp a3
-add tp tp a4
-add tp tp a5
-add tp tp a6
-add tp tp a7
 rem a3 a0 a1
 rem a4 a0 a2
 rem a5 a1 a2
 rem a6 a2 a0
 rem a7 a2 a1
-add tp tp a3
-add tp tp a4
-add tp tp a5
-add tp tp a6
-add tp tp a7
 remu a3 a0 a1
 remu a4 a0 a2
 remu a5 a1 a2
 remu a6 a2 a0
 remu a7 a2 a1
-add tp tp a3
-add tp tp a4
-add tp tp a5
-add tp tp a6
-add tp tp a7
 sb x0 -1(x0)
