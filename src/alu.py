@@ -1,6 +1,6 @@
 from assassyn.frontend import *
 from rob import ROB
-from utils import popAllPorts
+from utils import popAllPorts, ValArray
 
 class ALU(Module):
     def __init__(self):
@@ -11,6 +11,7 @@ class ALU(Module):
             'robId':Port(Bits(32)),
             'flushTag':Port(Bits(1))
         })
+        self.busy = ValArray(Bits(1), 1, self)
     @module.combinational
     def build(self,rob:ROB):
         flush = self.flushTag.valid()
