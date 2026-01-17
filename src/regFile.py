@@ -8,8 +8,17 @@ class RegFile:
         self.dependence = ValArray(Bits(32), 32, rob)
 
     def build(self, wPos, wData, wId):
-        self.regs[wPos] = wData
-        self.dependence[wPos] = wId
+        with Condition(wPos != Bits(32)(0)):
+            self.regs[wPos] = wData
+            self.dependence[wPos] = wId
+
+    def buildValue(self, wPos, wData):
+        with Condition(wPos != Bits(32)(0)):
+            self.regs[wPos] = wData
+
+    def buildDependence(self, wPos, wId):
+        with Condition(wPos != Bits(32)(0)):
+            self.dependence[wPos] = wId
 
     def log(self):
         for i in range(32):

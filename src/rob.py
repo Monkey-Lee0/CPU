@@ -79,14 +79,14 @@ class ROB(Module):
                 val = popWithDefault(self.val, Bits(32)(0))
 
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3))):
-                    rf.build(rd, rf.regs[rd], newId)
+                    rf.buildDependence(rd, newId)
                     self.push(Bits(1)(1), instId, rd, val, newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(4)):
                     self.push(Bits(1)(0), instId, Bits(32)(0), val, newId, expect, anotherPC)
                 with Condition(instType == Bits(32)(5)):
                     self.push(Bits(1)(1), instId, Bits(32)(0), val, newId, expect, anotherPC)
                 with Condition((instType == Bits(32)(6)) | (instType == Bits(32)(7))):
-                    rf.build(rd, rf.regs[rd], newId)
+                    rf.buildDependence(rd, newId)
                     self.push(Bits(1)(0), instId, rd, val, newId, expect, anotherPC)
 
             # commit
@@ -112,8 +112,9 @@ class ROB(Module):
                 with Condition((instType == Bits(32)(1)) | (instType == Bits(32)(2)) | (instType == Bits(32)(3)) |
                                (instType == Bits(32)(6)) | (instType == Bits(32)(7))):
                     dest = self.dest[self.l[0]]
+                    rf.buildValue(dest, self.value[self.l[0]])
                     with Condition((rf.dependence[dest] == commitId) & (dest != issueDest)):
-                        rf.build(dest, self.value[self.l[0]], Bits(32)(0))
+                        rf.buildDependence(dest, Bits(32)(0))
 
                 # enable in lsb
                 with Condition(instType == Bits(32)(4)):
@@ -125,7 +126,7 @@ class ROB(Module):
                     rs.flushTag.push(Bits(1)(1))
                     ic.flushTag.push(Bits(1)(1))
                     ic.newPC.push(self.anotherPC[self.l[0]])
-                    log("{}", self.anotherPC[self.l[0]])
+                    log("fuck {}", self.anotherPC[self.l[0]])
                     ic.newId.push(self.ID[self.l[0]])
                     lsb.flushTag.push(Bits(1)(1))
                     lsb.flushId.push(self.ID[self.l[0]])
@@ -143,4 +144,4 @@ class ROB(Module):
             (flush & self)[0] <= Bits(1)(0)
 
         # rf.log()
-        # self.log()
+        self.log()

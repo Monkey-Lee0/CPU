@@ -60,6 +60,7 @@ class RS(Module):
                 rs2 = self.rs2.pop()
                 imm = self.imm.pop()
                 newId = self.newId.pop()
+                log("why issue? {} {} {} {} {} {} {}", instType, instId, rd, rs1, rs2, imm, newId)
 
                 tag = Bits(1)(1)
                 for i in range(self.rsSize):

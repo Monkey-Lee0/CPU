@@ -144,14 +144,14 @@ def parseCInst(inst: Value):
 def parseC0Inst(inst: Value):
     funct3 = takeBitsRange(inst, 13, 15)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct3 == Bits(32)(0b010), parseClw(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b110), parseCsw(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b000), parseCaddi4spn(inst))
+    res.checkCopy(funct3 == Bits(32)(0b010), parseClw(inst))
+    res.checkCopy(funct3 == Bits(32)(0b110), parseCsw(inst))
+    res.checkCopy(funct3 == Bits(32)(0b000), parseCaddi4spn(inst))
     return res
 
 def parseClw(inst: Value):
-    rs1 = takeBitsRange(inst, 7, 9)
-    rd = takeBitsRange(inst, 2, 4)
+    rs1 = takeBitsRange(inst, 7, 9) + Bits(32)(8)
+    rd = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     imm = mergeBits(inst, {
         (6, 6):(2, 2),
         (10, 12):(3, 5),
@@ -160,8 +160,8 @@ def parseClw(inst: Value):
     return Inst(Bits(32)(2), Bits(32)(24), rd, rs1, Bits(32)(0), imm)
 
 def parseCsw(inst: Value):
-    rs1 = takeBitsRange(inst, 7, 9)
-    rs2 = takeBitsRange(inst, 2, 4)
+    rs1 = takeBitsRange(inst, 7, 9) + Bits(32)(8)
+    rs2 = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     imm = mergeBits(inst, {
         (6, 6): (2, 2),
         (10, 12): (3, 5),
@@ -171,27 +171,29 @@ def parseCsw(inst: Value):
 
 def parseCaddi4spn(inst: Value):
     sp = Bits(32)(2)
-    rd = takeBitsRange(inst, 2, 4)
+    rd = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     imm = mergeBits(inst, {
         (5, 5):(3, 3),
         (6, 6):(2, 2),
         (7, 10):(6, 9),
         (11, 12):(4, 5),
     }) # zero-extend
-    return Inst(Bits(32)(2), Bits(32)(24), rd, sp, Bits(32)(0), imm)
+    return Inst(Bits(32)(2), Bits(32)(11), rd, sp, Bits(32)(0), imm)
 
 def parseC1Inst(inst: Value):
     funct3 = takeBitsRange(inst, 13, 15)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct3 == Bits(32)(0b101), parseCj(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b001), parseCjal(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b110), parseCbeqz(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b111), parseCbnez(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b010), parseCli(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b011), parseClui(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b000), parseCaddi(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b011), parseCaddi16sp(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b100), parseCBS(inst))
+    res.checkCopy(funct3 == Bits(32)(0b101), parseCj(inst))
+    res.checkCopy(funct3 == Bits(32)(0b001), parseCjal(inst))
+    res.checkCopy(funct3 == Bits(32)(0b110), parseCbeqz(inst))
+    res.checkCopy(funct3 == Bits(32)(0b111), parseCbnez(inst))
+    res.checkCopy(funct3 == Bits(32)(0b010), parseCli(inst))
+    res.checkCopy(funct3 == Bits(32)(0b000), parseCaddi(inst))
+    res.checkCopy(funct3 == Bits(32)(0b011), parseC011(inst))
+    res.checkCopy(funct3 == Bits(32)(0b100), parseCBS(inst))
+    # log("??? {} {}", inst, funct3)
+    # res.print()
+    # parseClui(inst).print()
     return res
 
 def parseCj(inst: Value):
@@ -224,7 +226,7 @@ def parseCjal(inst: Value):
 
 def parseCbeqz(inst: Value):
     zero = Bits(32)(0)
-    rs1 = takeBitsRange(inst, 7, 9)
+    rs1 = takeBitsRange(inst, 7, 9) + Bits(32)(8)
     imm = mergeBits(inst, {
         (2, 2): (5, 5),
         (3, 4): (1, 2),
@@ -236,7 +238,7 @@ def parseCbeqz(inst: Value):
 
 def parseCbnez(inst: Value):
     zero = Bits(32)(0)
-    rs1 = takeBitsRange(inst, 7, 9)
+    rs1 = takeBitsRange(inst, 7, 9) + Bits(32)(8)
     imm = mergeBits(inst, {
         (2, 2): (5, 5),
         (3, 4): (1, 2),
@@ -255,14 +257,6 @@ def parseCli(inst: Value):
     }) # sign-extend
     return Inst(Bits(32)(2), Bits(32)(11), rd, zero, Bits(32)(0), bitsToInt32(imm, 6).bitcast(Bits(32)))
 
-def parseClui(inst: Value):
-    rd = takeBitsRange(inst, 7, 11)
-    imm = mergeBits(inst, {
-        (2, 6):(12, 16),
-        (12, 12):(17, 17)
-    }) # zero-extend
-    return Inst(Bits(32)(6), Bits(32)(37), rd, Bits(32)(0), Bits(32)(0), imm)
-
 def parseCaddi(inst: Value):
     rd = takeBitsRange(inst, 7, 11)
     imm = mergeBits(inst, {
@@ -270,6 +264,20 @@ def parseCaddi(inst: Value):
         (12, 12): (5, 5)
     }) # sign-extend
     return Inst(Bits(32)(2), Bits(32)(11), rd, rd, Bits(32)(0), bitsToInt32(imm, 6).bitcast(Bits(32)))
+
+def parseC011(inst: Value):
+    rd = takeBitsRange(inst, 7, 11)
+    res = parseClui(inst)
+    res.checkCopy(((rd == Bits(32)(0))|(rd == Bits(32)(2))), parseCaddi16sp(inst))
+    return res
+
+def parseClui(inst: Value):
+    rd = takeBitsRange(inst, 7, 11)
+    imm = mergeBits(inst, {
+        (2, 6):(12, 16),
+        (12, 12):(17, 17)
+    }) # zero-extend
+    return Inst(Bits(32)(6), Bits(32)(37), rd, Bits(32)(0), Bits(32)(0), imm)
 
 def parseCaddi16sp(inst: Value):
     sp = Bits(32)(2)
@@ -285,14 +293,14 @@ def parseCaddi16sp(inst: Value):
 def parseCBS(inst: Value):
     funct2 = takeBitsRange(inst, 10, 11)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct2 == Bits(32)(0b00), parseCsrli(inst))
-    res = res.checkCopy(funct2 == Bits(32)(0b01), parseCsrai(inst))
-    res = res.checkCopy(funct2 == Bits(32)(0b10), parseCandi(inst))
-    res = res.checkCopy(funct2 == Bits(32)(0b11), parseCS(inst))
+    res.checkCopy(funct2 == Bits(32)(0b00), parseCsrli(inst))
+    res.checkCopy(funct2 == Bits(32)(0b01), parseCsrai(inst))
+    res.checkCopy(funct2 == Bits(32)(0b10), parseCandi(inst))
+    res.checkCopy(funct2 == Bits(32)(0b11), parseCS(inst))
     return res
 
 def parseCsrli(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
     imm = mergeBits(inst, {
         (2, 6):(0, 4),
         (12, 12): (5, 5),
@@ -300,7 +308,7 @@ def parseCsrli(inst: Value):
     return Inst(Bits(32)(3), Bits(32)(16), rd, rd, Bits(32)(0), imm)
 
 def parseCsrai(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
     imm = mergeBits(inst, {
         (2, 6): (0, 4),
         (12, 12): (5, 5),
@@ -308,7 +316,7 @@ def parseCsrai(inst: Value):
     return Inst(Bits(32)(3), Bits(32)(17), rd, rd, Bits(32)(0), imm)
 
 def parseCandi(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
     imm = mergeBits(inst, {
         (2, 6): (0, 4),
         (12, 12): (5, 5),
@@ -318,39 +326,39 @@ def parseCandi(inst: Value):
 def parseCS(inst: Value):
     funct2 = takeBitsRange(inst, 5,6)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct2 == Bits(32)(0b00), parseCand(inst))
-    res = res.checkCopy(funct2 == Bits(32)(0b01), parseCor(inst))
-    res = res.checkCopy(funct2 == Bits(32)(0b10), parseCxor(inst))
-    res = res.checkCopy(funct2 == Bits(32)(0b11), parseCsub(inst))
+    res.checkCopy(funct2 == Bits(32)(0b11), parseCand(inst))
+    res.checkCopy(funct2 == Bits(32)(0b10), parseCor(inst))
+    res.checkCopy(funct2 == Bits(32)(0b01), parseCxor(inst))
+    res.checkCopy(funct2 == Bits(32)(0b00), parseCsub(inst))
     return res
 
 def parseCand(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
-    rs2 = takeBitsRange(inst, 2, 4)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
+    rs2 = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     return Inst(Bits(32)(1), Bits(32)(3), rd, rd, rs2, Bits(32)(0))
 
 def parseCor(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
-    rs2 = takeBitsRange(inst, 2, 4)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
+    rs2 = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     return Inst(Bits(32)(1), Bits(32)(4), rd, rd, rs2, Bits(32)(0))
 
 def parseCxor(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
-    rs2 = takeBitsRange(inst, 2, 4)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
+    rs2 = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     return Inst(Bits(32)(1), Bits(32)(5), rd, rd, rs2, Bits(32)(0))
 
 def parseCsub(inst: Value):
-    rd = takeBitsRange(inst, 7, 9)
-    rs2 = takeBitsRange(inst, 2, 4)
+    rd = takeBitsRange(inst, 7, 9) + Bits(32)(8)
+    rs2 = takeBitsRange(inst, 2, 4) + Bits(32)(8)
     return Inst(Bits(32)(1), Bits(32)(2), rd, rd, rs2, Bits(32)(0))
 
 def parseC2Inst(inst: Value):
     funct3 = takeBitsRange(inst, 13, 15)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct3 == Bits(32)(0b010), parseClwsp(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b110), parseCswsp(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b100), parseCR(inst))
-    res = res.checkCopy(funct3 == Bits(32)(0b000), parseCslli(inst))
+    res.checkCopy(funct3 == Bits(32)(0b010), parseClwsp(inst))
+    res.checkCopy(funct3 == Bits(32)(0b110), parseCswsp(inst))
+    res.checkCopy(funct3 == Bits(32)(0b100), parseCR(inst))
+    res.checkCopy(funct3 == Bits(32)(0b000), parseCslli(inst))
     return res
 
 def parseClwsp(inst: Value):
@@ -375,14 +383,14 @@ def parseCswsp(inst: Value):
 def parseCR(inst: Value):
     funct5 = takeBitsRange(inst, 2,   6)
     res = parseCADD(inst)
-    res = res.checkCopy(funct5 == Bits(32)(0), parseCJR(inst))
+    res.checkCopy(funct5 == Bits(32)(0), parseCJR(inst))
     return res
 
 def parseCJR(inst: Value):
     funct1 = takeBitsRange(inst, 12, 12)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct1 == Bits(32)(0b0), parseCjr(inst))
-    res = res.checkCopy(funct1 == Bits(32)(0b1), parseCjalr(inst))
+    res.checkCopy(funct1 == Bits(32)(0b0), parseCjr(inst))
+    res.checkCopy(funct1 == Bits(32)(0b1), parseCjalr(inst))
     return res
 
 def parseCjr(inst: Value):
@@ -398,8 +406,8 @@ def parseCjalr(inst: Value):
 def parseCADD(inst: Value):
     funct1 = takeBitsRange(inst, 12, 12)
     res = Inst(Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0), Bits(32)(0))
-    res = res.checkCopy(funct1 == Bits(32)(0b0), parseCmv(inst))
-    res = res.checkCopy(funct1 == Bits(32)(0b1), parseCadd(inst))
+    res.checkCopy(funct1 == Bits(32)(0b0), parseCmv(inst))
+    res.checkCopy(funct1 == Bits(32)(0b1), parseCadd(inst))
     return res
 
 def parseCmv(inst: Value):
