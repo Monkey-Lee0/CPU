@@ -33,7 +33,7 @@ def run_quietly(func, *args, **kwargs):
 
 if __name__ == "__main__":
 
-    sys = buildSys('Cjr')
+    sys = buildSys('test_alu_arr')
     print(sys)
 
     config = config(
