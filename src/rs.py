@@ -60,7 +60,6 @@ class RS(Module):
                 rs2 = self.rs2.pop()
                 imm = self.imm.pop()
                 newId = self.newId.pop()
-                log("why issue? {} {} {} {} {} {} {}", instType, instId, rd, rs1, rs2, imm, newId)
 
                 tag = Bits(1)(1)
                 for i in range(self.rsSize):
@@ -69,19 +68,19 @@ class RS(Module):
                         with Condition(instType == Bits(32)(1)):
                             self.busy[i] = Bits(1)(1)
                             self.inst[i] = instId
-                            self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
-                            self.vk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
-                            self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
-                            self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
+                            self.vj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(Bits(32)(0), rf.regs[rs1])
+                            self.vk[i] = ((rf.dependence[rs2] != Bits(32)(0)) & (rf.dependence[rs2] != newId)).select(Bits(32)(0), rf.regs[rs2])
+                            self.qj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(rf.dependence[rs1], Bits(32)(0))
+                            self.qk[i] = ((rf.dependence[rs2] != Bits(32)(0)) & (rf.dependence[rs2] != newId)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i] = Bits(32)(0)
                         # type I/I*
                         with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                             self.busy[i] = Bits(1)(1)
                             self.inst[i] = instId
-                            self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
+                            self.vj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(Bits(32)(0), rf.regs[rs1])
                             self.vk[i] = Bits(32)(0)
-                            self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
+                            self.qj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(rf.dependence[rs1], Bits(32)(0))
                             self.qk[i] = Bits(32)(0)
                             self.dest[i] = newId
                             self.A[i] = imm
@@ -89,20 +88,20 @@ class RS(Module):
                         with Condition((instType == Bits(32)(4))):
                             self.busy[i] = Bits(1)(1)
                             self.inst[i] = instId
-                            self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
-                            self.vk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
-                            self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
-                            self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
+                            self.vj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(Bits(32)(0), rf.regs[rs1])
+                            self.vk[i] = ((rf.dependence[rs2] != Bits(32)(0)) & (rf.dependence[rs2] != newId)).select(Bits(32)(0), rf.regs[rs2])
+                            self.qj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(rf.dependence[rs1], Bits(32)(0))
+                            self.qk[i] = ((rf.dependence[rs2] != Bits(32)(0)) & (rf.dependence[rs2] != newId)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i] = imm
                         # type B
                         with Condition(instType == Bits(32)(5)):
                             self.busy[i] = Bits(1)(1)
                             self.inst[i] = instId
-                            self.vj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs1])
-                            self.vk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(Bits(32)(0), rf.regs[rs2])
-                            self.qj[i] = (rf.dependence[rs1] != Bits(32)(0)).select(rf.dependence[rs1], Bits(32)(0))
-                            self.qk[i] = (rf.dependence[rs2] != Bits(32)(0)).select(rf.dependence[rs2], Bits(32)(0))
+                            self.vj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(Bits(32)(0), rf.regs[rs1])
+                            self.vk[i] = ((rf.dependence[rs2] != Bits(32)(0)) & (rf.dependence[rs2] != newId)).select(Bits(32)(0), rf.regs[rs2])
+                            self.qj[i] = ((rf.dependence[rs1] != Bits(32)(0)) & (rf.dependence[rs1] != newId)).select(rf.dependence[rs1], Bits(32)(0))
+                            self.qk[i] = ((rf.dependence[rs2] != Bits(32)(0)) & (rf.dependence[rs2] != newId)).select(rf.dependence[rs2], Bits(32)(0))
                             self.dest[i] = newId
                             self.A[i]= Bits(32)(0)
                         # type U (auipc/lui rd label)
@@ -145,25 +144,25 @@ class RS(Module):
                             alu_arr[j].instId.push(self.inst[i])
                             alu_arr[j].lhs.push(self.vj[i])
                             alu_arr[j].rhs.push(self.vk[i])
-                            alu_arr[j].robId.push(self.dest[i])
+                            alu_arr[j].newId.push(self.dest[i])
                         # type I/I*
                         with Condition((instType == Bits(32)(2)) | (instType == Bits(32)(3))):
                             alu_arr[j].instId.push(self.inst[i])
                             alu_arr[j].lhs.push(self.vj[i])
                             alu_arr[j].rhs.push(self.A[i])
-                            alu_arr[j].robId.push(self.dest[i])
+                            alu_arr[j].newId.push(self.dest[i])
                         # type B
                         with Condition(instType == Bits(32)(5)):
                             alu_arr[j].instId.push(self.inst[i])
                             alu_arr[j].lhs.push(self.vj[i])
                             alu_arr[j].rhs.push(self.vk[i])
-                            alu_arr[j].robId.push(self.dest[i])
+                            alu_arr[j].newId.push(self.dest[i])
                         # type U (auipc/lui rd label)
                         with Condition(instType == Bits(32)(6)):
                             alu_arr[j].instId.push(self.inst[i])
                             alu_arr[j].lhs.push(self.vj[i])
                             alu_arr[j].rhs.push(self.vk[i])
-                            alu_arr[j].robId.push(self.dest[i])
+                            alu_arr[j].newId.push(self.dest[i])
                         self.clear(i)
                     hasForward = hasForward | ((count == totalPrevious) & (~alu_arr[j].busy[0]) & canExecute)
                 totalPrevious = totalPrevious + hasForward.bitcast(Bits(32))
@@ -176,7 +175,7 @@ class RS(Module):
                 with Condition(tag & canExecute):
                     agu.lhs.push(self.vj[i])
                     agu.rhs.push(self.A[i])
-                    agu.robId.push(self.dest[i])
+                    agu.newId.push(self.dest[i])
                     lsb.newId_rs.push(self.dest[i])
                     lsb.wdata.push(self.vk[i])
                     self.clear(i)
