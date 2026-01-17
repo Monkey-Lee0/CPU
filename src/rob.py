@@ -61,7 +61,7 @@ class ROB(Module):
         log('-'*50)
 
     @module.combinational
-    def build(self, rf, ic, rs, lsb, alu):
+    def build(self, rf, ic, rs, lsb, alu_arr):
         flush = RegArray(Bits(1), 1)
 
         with (Condition(~flush[0])):
@@ -130,7 +130,8 @@ class ROB(Module):
                     ic.newId.push(self.ID[self.l[0]])
                     lsb.flushTag.push(Bits(1)(1))
                     lsb.flushId.push(self.ID[self.l[0]])
-                    alu.flushTag.push(Bits(1)(1))
+                    for i in range(8):
+                        alu_arr[i].flushTag.push(Bits(1)(1))
 
         # flush
         with Condition(flush[0]):

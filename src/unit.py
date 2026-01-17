@@ -29,16 +29,17 @@ def buildSys(testcase):
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)
-        alu = ALU()
+        alu_arr = [ALU() for _ in range(8)]
         agu = AGU()
         lsb = LSB(8)
 
         driver.build(iCache)
         iCache.build(rs, rob, lsb, rf)
         dCache.build()
-        rs.build(rf, lsb, alu, agu)
-        rob.build(rf, iCache, rs, lsb, alu)
-        alu.build(rob)
+        rs.build(rf, lsb, alu_arr, agu)
+        rob.build(rf, iCache, rs, lsb, alu_arr)
+        for i in range(8):
+            alu_arr[i].build(rob)
         agu.build(lsb)
         lsb.build(dCache, rob)
 

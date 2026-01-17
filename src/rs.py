@@ -37,7 +37,7 @@ class RS(Module):
                 self.vk[i] = value
 
     @module.combinational
-    def build(self, rf, lsb, alu, agu):
+    def build(self, rf, lsb, alu_arr, agu):
         # flush
         flush = self.flushTag.valid()
         with Condition(flush):

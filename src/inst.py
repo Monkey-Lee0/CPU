@@ -58,8 +58,8 @@ RInst = { # funct3 - funct7 -> id
     Bits(32)(0b0110000000):Bits(32)(10), # sltu
     Bits(32)(0b0000000001):Bits(32)(38), # mul
     Bits(32)(0b0010000001):Bits(32)(39), # mulh
-    Bits(32)(0b0100000001):Bits(32)(40), # mulsu
-    Bits(32)(0b0110000001):Bits(32)(41), # mulu
+    Bits(32)(0b0100000001):Bits(32)(40), # mulhsu
+    Bits(32)(0b0110000001):Bits(32)(41), # mulhu
     Bits(32)(0b1000000001):Bits(32)(42), # div
     Bits(32)(0b1010000001):Bits(32)(43), # divu
     Bits(32)(0b1100000001):Bits(32)(44), # rem
