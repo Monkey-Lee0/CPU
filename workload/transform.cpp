@@ -97,6 +97,7 @@ void solve_single(ifstream& ifs, ofstream& ofs)
     char ch[50];
     while(ifs>>ch)
     {
+    cout<<addr<<" "<<ch<<endl;
         if(ch[0]=='@')
         {
             int oldAddr=0;
@@ -112,7 +113,7 @@ void solve_single(ifstream& ifs, ofstream& ofs)
         addr++;
     }
     while(addr%4)
-        hex.push_back(0);
+        hex.push_back(0), addr++;
     for(int i=0;i<(int)hex.size();i+=4)
     {
         auto result=hex[i]|(hex[i+1]<<8)|(hex[i+2]<<16)|(hex[i+3]<<24);

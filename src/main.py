@@ -32,12 +32,12 @@ def run_quietly(func, *args, **kwargs):
 
 
 if __name__ == "__main__":
-    sys = buildSys('c/simple_adder')
+    sys = buildSys('test')
     print(sys)
 
     config = config(
         verilog=utils.has_verilator(),
-        sim_threshold=10000,
+        sim_threshold=400000,
         idle_threshold=200,
         resource_base=Path(__file__).resolve().parent.parent,
         random=True,

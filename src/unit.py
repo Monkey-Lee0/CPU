@@ -25,7 +25,7 @@ def buildSys(testcase):
     with sys:
         driver = Driver()
         iCache = ICache(8, f'workload/{testcase}.data')
-        dCache = DCache(32, 'workload/dcache.in')
+        dCache = DCache(32, f'workload/{testcase}.data')
         rs = RS(8)
         rob = ROB(8)
         rf = RegFile(rob)
